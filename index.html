@@ -212,18 +212,18 @@
       <div class="panel edit-only"><h2>Funnel assumptions <small>— dropdowns</small></h2><div id="assumpTable"></div></div>
       <div class="panel"><h2>Sales funnel</h2><div id="funnel-deal"></div></div>
     </div>
-    <div class="panel edit-only">
-      <h2>📝 Client Lead List — Plan <small>— targets · deal value = price/can × total cans</small></h2>
+    <div class="panel plan-only">
+      <h2>📝 Client Lead List — Plan <small>— targets · deal value = price/can × total cans · shown in 📐 Plan view</small></h2>
       <div id="clientTable"></div>
       <button class="btn sec" style="margin-top:12px" onclick="addClient()">+ Add target client</button>
     </div>
-    <div class="panel edit-only">
-      <h2>✅ First Order Client List — REALIZED <small>— sales team: one row per client actually closed</small></h2>
+    <div class="panel real-only">
+      <h2>✅ First Order Client List — REALIZED <small>— sales team: pick the client from the plan lead list · shown in ✅ Realization view</small></h2>
       <div id="realTable"></div>
       <button class="btn" style="margin-top:12px" onclick="addReal()">+ Log closed client</button>
     </div>
-    <div class="panel edit-only">
-      <h2>🔁 Existing Client Upsell <small>— reapproach existing clients · Closed counts the increase into realization</small></h2>
+    <div class="panel real-only">
+      <h2>🔁 Existing Client Upsell <small>— reapproach existing clients · Closed counts the increase · shown in ✅ Realization view</small></h2>
       <div id="upsTable"></div>
       <button class="btn sec" style="margin-top:12px" onclick="addUps()">+ Add existing client</button>
     </div>
@@ -495,7 +495,31 @@ function updCl(list,i,f,v){
 const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
 function addClient(){clients.push({name:'New target',seg:SEGS[0],pct:'',can:13500,cans:48,note:'',date:todayStr()});markRow(clients[clients.length-1]);render();}
 function delClient(i){delMark(clients[i]);clients.splice(i,1);render();}
-function addReal(){realized.push({name:'Closed client',seg:SEGS[0],can:13500,cans:48,note:'',date:todayStr()});markRow(realized[realized.length-1]);render();}
+function addReal(){
+  const src=clients[0];
+  realized.push(src?{name:src.name,seg:src.seg,can:src.can,cans:src.cans,note:'',date:todayStr()}
+                   :{name:'Closed client',seg:SEGS[0],can:13500,cans:48,note:'',date:todayStr()});
+  markRow(realized[realized.length-1]);render();
+}
+function pickReal(i,val){
+  if(val==='__custom'){realized[i]._custom=1;realized[i].name='';}
+  else{
+    realized[i]._custom=0;
+    realized[i].name=val;
+    const src=clients.find(c=>c.name===val);
+    if(src){realized[i].seg=src.seg;realized[i].can=src.can;realized[i].cans=src.cans;}
+  }
+  markRow(realized[i]);render();
+}
+function pickUps(i,val){
+  if(val==='__custom'){upsell[i]._custom=1;upsell[i].name='';}
+  else{upsell[i]._custom=0;upsell[i].name=val;}
+  markRow(upsell[i]);render();
+}
+function setRealName(i,v){if(v&&v.trim()){realized[i].name=v.trim();realized[i]._custom=1;markRow(realized[i]);render();}}
+function setUpsName(i,v){if(v&&v.trim()){upsell[i].name=v.trim();upsell[i]._custom=1;markRow(upsell[i]);render();}}
+function backReal(i){const n=clients[0];realized[i]._custom=0;if(n){realized[i].name=n.name;realized[i].seg=n.seg;realized[i].can=n.can;realized[i].cans=n.cans;}markRow(realized[i]);render();}
+function backUps(i){realized;upsell[i]._custom=0;if(clients[0])upsell[i].name=clients[0].name;markRow(upsell[i]);render();}
 function delReal(i){delMark(realized[i]);realized.splice(i,1);render();}
 function updUps(i,f,v){
   if(f==='name'||f==='status'||f==='note'||f==='date'){upsell[i][f]=v;}
@@ -504,7 +528,11 @@ function updUps(i,f,v){
   markRow(upsell[i]);
   render();
 }
-function addUps(){upsell.push({name:'Existing client',status:'Proposed',exCan:13500,exCans:48,nwCan:13500,nwCans:96,note:'',date:todayStr()});markRow(upsell[upsell.length-1]);render();}
+function addUps(){
+  const nm=clients[0]?clients[0].name:'Existing client';
+  upsell.push({name:nm,status:'Proposed',exCan:13500,exCans:48,nwCan:13500,nwCans:96,note:'',date:todayStr()});
+  markRow(upsell[upsell.length-1]);render();
+}
 function delUps(i){delMark(upsell[i]);upsell.splice(i,1);render();}
 function updAct(k,v){actual[k]=v===''?'':numOf(v);markTrip();render();}
 
@@ -852,6 +880,36 @@ function downloadReport(){
   const ups=upsell.filter(u=>u.status==='Closed'&&(period==='all'||inP(u.date)));
   const mrows=monthlyRows();
   const kpi=(l,v)=>`<span class="kpi">${l}<b>${v}</b></span>`;
+  const planCpl=A.leads?c.total/A.leads:null;
+  const gpPerClient=rP.rAcc?((rP.rGP1+rP.rRepeatGP)/rP.rAcc):null;
+  const worth=(gpPerClient!==null&&rP.cpa)?gpPerClient/rP.cpa:null;
+  const revPerRp=(rP.hasSpend&&rP.spend>0)?rP.rRevH/rP.spend:null;
+  const gpPerRp=(rP.hasSpend&&rP.spend>0)?rP.rGPH/rP.spend:null;
+  const vd=(ok,good,bad)=>ok?`<span style="color:#1F9D55;font-weight:bold">${good}</span>`:`<span style="color:#E0442E;font-weight:bold">${bad}</span>`;
+  let eff='';
+  if(!rP.hasSpend){
+    eff=`<div style="border:2px solid #E0442E;border-radius:12px;padding:12px 16px;color:#E0442E;font-size:12px"><b>⚠️ No actual spend logged for this period.</b> Cost/lead, cost/account, the worth-it ratio and ROI all need it — fill the <b>Actual</b> column (with a Date spent) on the Budgeting &amp; Realization page, then download this report again.</div>`;
+  }else{
+    const spendPct=c.total>0?Math.round(rP.spend/c.total*100):0;
+    eff=`<table><tr><th style="width:40%">Question</th><th class=n>Actual</th><th class=n>Benchmark</th><th>Verdict</th></tr>
+    <tr><td><b>1 · Is the cost too high or low?</b><br><span class="muted">actual spend vs whole-trip plan budget</span></td>
+      <td class=n>${fmtS(rP.spend)}<br><span class="muted">${spendPct}% of plan</span></td>
+      <td class=n>${fmtS(c.total)} plan</td>
+      <td>${vd(rP.spend<=c.total,'Within plan ✓','Over plan by '+fmtS(rP.spend-c.total))}</td></tr>
+    <tr><td>&nbsp;&nbsp;· Cost per lead<br><span class="muted">spend ÷ leads approached (${rP.leadsP})</span></td>
+      <td class=n>${rP.cpl!==null?fmtS(rP.cpl):'—'}</td>
+      <td class=n>${planCpl!==null?fmtS(planCpl)+' plan':'—'}</td>
+      <td>${(rP.cpl!==null&&planCpl!==null)?vd(rP.cpl<=planCpl,'Cheaper than plan ✓','More expensive than plan'):'<span class="muted">log dated leads</span>'}</td></tr>
+    <tr><td><b>2 · Is a converted lead worth the cost?</b><br><span class="muted">gross profit per client (first order + ${A.boxes} repeat boxes over ${c.H} mo) vs acquisition cost per client</span></td>
+      <td class=n>${gpPerClient!==null?fmtS(gpPerClient)+'<br><span class="muted">GP / client</span>':'—'}</td>
+      <td class=n>${rP.cpa!==null?fmtS(rP.cpa)+'<br><span class="muted">cost / client</span>':'—'}</td>
+      <td>${worth!==null?vd(worth>=1,worth.toFixed(1)+'× — worth it ✓',worth.toFixed(1)+'× — costs more than it returns'):'<span class="muted">log closings first</span>'}</td></tr>
+    <tr><td><b>3 · Overall cost → revenue effectiveness</b><br><span class="muted">what every Rp 1 spent brings back over ${c.H} months (incl. closed upsell increase)</span></td>
+      <td class=n>${revPerRp!==null?'Rp '+revPerRp.toFixed(2)+'<br><span class="muted">revenue / Rp 1</span>':'—'}</td>
+      <td class=n>${gpPerRp!==null?'Rp '+gpPerRp.toFixed(2)+'<br><span class="muted">gross profit / Rp 1</span>':'—'}</td>
+      <td>${rP.roiH!==null?vd(rP.roiH>=0,'ROI '+pctf(rP.roiH)+' — effective ✓','ROI '+pctf(rP.roiH)+' — not yet paying back'):'—'}</td></tr>
+    </table>`;
+  }
   const html=`<!DOCTYPE html><html><head><title>BORA Sales Report — ${esc(periodLabel())}</title><style>
     body{font-family:Arial,Helvetica,sans-serif;color:#141414;margin:34px}
     .hd{background:#E4551D;color:#fff;padding:18px 22px;border-radius:14px;display:flex;justify-content:space-between;align-items:center}
@@ -879,6 +937,9 @@ function downloadReport(){
   ${kpi('First-order revenue',fmtS(rP.rRev1))}
   ${kpi('Upsell increase',fmtS(rP.uIncRev))}
   ${kpi('ROI ('+c.H+'-mo projection)',rP.roiH!==null?pctf(rP.roiH):'—')}
+
+  <h2>Cost effectiveness — ${esc(periodLabel())}</h2>
+  ${eff}
 
   <h2>Monthly compilation</h2>
   <table><tr><th>Month</th><th class=n>Leads</th><th class=n>Acquired</th><th class=n>Success</th><th class=n>Spend</th><th class=n>Cost/lead</th><th class=n>Cost/acq</th><th class=n>Revenue</th></tr>
@@ -922,6 +983,8 @@ function render(){
   const vb=document.getElementById('vt-'+view);if(vb)vb.classList.add('active');
   document.querySelectorAll('.edit-only').forEach(e=>e.style.display=view==='compare'?'none':'');
   document.querySelectorAll('.cmp-only').forEach(e=>e.style.display=view==='compare'?'':'none');
+  document.querySelectorAll('.plan-only').forEach(e=>e.style.display=view==='plan'?'':'none');
+  document.querySelectorAll('.real-only').forEach(e=>e.style.display=view==='real'?'':'none');
 
   // LIVE
   document.getElementById('liveKpi').innerHTML=`
@@ -1005,12 +1068,15 @@ function render(){
        <td class="num">${spendVar===null?'':`<span class="${spendVar<=0?'var-pos':'var-neg'}">${spendVar>0?'+':''}${fmtS(spendVar)}</span>`}</td>`:''}<td></td></tr></table>`;
 
   // DEAL (period-filtered: rP)
+  const upsPropN=upsell.filter(u=>u.status!=='Lost').length;
+  const upsClosedN=upsell.filter(u=>u.status==='Closed'&&(period==='all'||inPeriod(u.date))).length;
   document.getElementById('dealKpi').innerHTML=`
     <div class="card orange"><div class="lbl">Clients acquired</div>${pr('plan',c.closings,'real',rP.rAcc||'—','')}</div>
     <div class="card yellow"><div class="lbl">Success ratio</div>${pr('plan',A.leads?Math.round(c.closings/A.leads*100)+'%':'—','real',rP.success!==null?Math.round(rP.success*100)+'% ('+rP.rAcc+'/'+rP.leadsP+')':'—',rP.success!==null&&rP.success*100>=A.close?'green':'')}</div>
     <div class="card"><div class="lbl">Cost / lead</div>${pr('plan',A.leads?fmtS(c.total/A.leads):'—','real',rP.cpl!==null?fmtS(rP.cpl):'—','')}</div>
     <div class="card"><div class="lbl">Cost / account</div>${pr('plan',c.closings?fmtS(c.cpa):'—','real',rP.cpa!==null?fmtS(rP.cpa):(rP.hasSpend?'awaiting closings':'—'),rP.cpa!==null&&rP.cpa<=c.cpa?'green':'')}</div>
     <div class="card"><div class="lbl">Avg deal / closing</div>${pr('plan',fmtS(c.avgDeal),'real',rP.rAcc?fmtS(rP.rAvgDeal):'—','')}</div>
+    <div class="card"><div class="lbl">Upsell clients</div>${pr('proposed',upsPropN+' · '+fmtS(c.upsIncRev),'closed',upsClosedN+' · '+fmtS(rP.uIncRev),rP.uIncRev>0?'green':'')}</div>
     <div class="card dark"><div class="lbl">ROI ${c.H}-month</div>${pr('plan',pctf(c.roiH),'real',rP.roiH!==null?pctf(rP.roiH):'—',rP.roiH!==null?(rP.roiH>=0?'green':'red'):'')}</div>`;
   const dealRows=[
     ['Leads approached vs plan',A.leads,rP.leadsP||null,v=>v],
@@ -1055,10 +1121,25 @@ function render(){
     `<tr class="sec-row"><td>Gross margin <span class="muted">· (avg price ${fmt(c.avgCan)} − COGS) ÷ avg price</span></td><td class="num">${Math.round(c.marginPct*100)}%</td></tr>`+
     '</table>';
 
+  const leadNames=()=>{const seen=new Set();return clients.map(c=>c.name).filter(n=>{if(!n||seen.has(n))return false;seen.add(n);return true;});};
+  const nameCell=(obj,i,list)=>{
+    if(list==='p')return `<td><input class="txt" value="${String(obj.name).replace(/"/g,'&quot;')}" onchange="updCl('p',${i},'name',this.value)"></td>`;
+    const names=leadNames();
+    const fn=list==='r'?'pickReal':'pickUps';
+    const setFn=list==='r'?'setRealName':'setUpsName';
+    const backFn=list==='r'?'backReal':'backUps';
+    const custom=obj._custom||!obj.name||!names.includes(obj.name);
+    if(custom){
+      return `<td><div style="display:flex;gap:4px;align-items:center;min-width:150px">
+        <input class="txt" placeholder="Type client name…" value="${String(obj.name||'').replace(/"/g,'&quot;')}" onchange="${setFn}(${i},this.value)">
+        ${names.length?`<button class="del" title="Pick from lead list instead" onclick="${backFn}(${i})">▾</button>`:''}</div></td>`;
+    }
+    return `<td><select style="min-width:135px;max-width:200px" onchange="${fn}(${i},this.value)">${names.map(n=>`<option ${n===obj.name?'selected':''}>${String(n).replace(/</g,'&lt;')}</option>`).join('')}<option value="__custom">✎ Custom name…</option></select></td>`;
+  };
   const clRow=(cl,i,list)=>{
     const boxes=cl.cans/CANS_PER_BOX;
     return `<tr>
-      <td><input class="txt" value="${String(cl.name).replace(/"/g,'&quot;')}" onchange="updCl('${list}',${i},'name',this.value)"></td>
+      ${nameCell(cl,i,list)}
       <td><select onchange="updCl('${list}',${i},'seg',this.value)">${SEGS.map(s=>`<option ${s===cl.seg?'selected':''}>${s}</option>`).join('')}</select></td>
       <td><input type="date" value="${cl.date||''}" style="width:138px;text-align:left" onchange="updCl('${list}',${i},'date',this.value)"></td>
       ${list==='p'?`<td class="num"><input class="pct" value="${cl.pct||''}" placeholder="—" onchange="updCl('p',${i},'pct',this.value)"></td>`:''}
@@ -1097,7 +1178,7 @@ function render(){
       const mEx=u.exCan>0?(u.exCan-c.cogs)/u.exCan:0, mNw=u.nwCan>0?(u.nwCan-c.cogs)/u.nwCan:0;
       const stCol=u.status==='Closed'?'var(--green)':u.status==='Lost'?'var(--muted)':'var(--orange)';
       return `<tr style="${u.status==='Lost'?'opacity:.45':''}">
-      <td><input class="txt" value="${String(u.name).replace(/"/g,'&quot;')}" onchange="updUps(${i},'name',this.value)"></td>
+      ${nameCell(u,i,'u')}
       <td><select style="color:${stCol};max-width:110px" onchange="updUps(${i},'status',this.value)">${UPS_STATUS.map(s=>`<option ${s===u.status?'selected':''}>${s}</option>`).join('')}</select></td>
       <td><input type="date" value="${u.date||''}" style="width:138px;text-align:left" onchange="updUps(${i},'date',this.value)"></td>
       <td class="num"><input class="qty" style="width:104px" value="${fmtIn(u.exCan)}" onchange="updUps(${i},'exCan',this.value)"></td>
