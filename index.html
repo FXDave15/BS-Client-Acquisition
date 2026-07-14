@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BORA — Sales Dashboard for Client Acquisition</title>
+<style>
+  :root{
+    --bg1:#E9E5DD; --bg2:#DCD9D2; --card:#FFFFFF; --card2:#F1EFE9; --line:#E4E1DA;
+    --text:#141414; --muted:#8E8B84; --yellow:#EDF238; --orange:#E4551D;
+    --green:#1F9D55; --red:#E0442E; --blue:#3D5AF1; --ink:#141414;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Helvetica Neue",-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Arial,sans-serif;
+    background:linear-gradient(135deg,var(--bg1),var(--bg2));min-height:100vh;color:var(--text);-webkit-font-smoothing:antialiased}
+  /* icon rail */
+  .rail{position:fixed;left:14px;top:14px;bottom:14px;width:62px;background:var(--card);border-radius:22px;
+    box-shadow:0 12px 34px rgba(0,0,0,.08);display:flex;flex-direction:column;align-items:center;padding:16px 0;z-index:50}
+  .rail .mark{font-size:1.4rem;margin-bottom:22px}
+  .rail button{width:44px;height:44px;border:none;background:none;border-radius:14px;font-size:1.15rem;cursor:pointer;margin-bottom:10px;color:var(--muted)}
+  .rail button.active{background:var(--ink);box-shadow:0 6px 16px rgba(0,0,0,.22)}
+  .rail button:hover:not(.active){background:var(--card2)}
+  .rail .avatar{margin-top:auto;width:40px;height:40px;border-radius:50%;background:var(--orange);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800}
+  .main{margin-left:92px;padding:22px 22px 70px;max-width:1080px}
+  /* topbar */
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .bora{background:var(--orange);color:#fff;border-radius:12px;padding:7px 14px;
+    font-family:"Arial Narrow","Helvetica Neue",Arial,sans-serif;font-weight:900;font-size:1.5rem;
+    letter-spacing:-.5px;transform:scaleY(1.15);display:inline-block;line-height:1;
+    box-shadow:0 8px 20px rgba(228,85,29,.35)}
+  .brand-title{font-size:1.05rem;font-weight:800;letter-spacing:-.02em;line-height:1.2}
+  .brand-title small{display:block;font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.02em}
+  .tpills{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .tpill{display:flex;align-items:center;gap:6px;background:var(--card);border-radius:999px;padding:7px 12px;box-shadow:0 6px 18px rgba(0,0,0,.06);font-size:.82rem}
+  .tpill select,.tpill input{border:none;background:none;font-size:.82rem;font-weight:600;color:var(--text);max-width:150px;padding:2px}
+  .tpill select:focus,.tpill input:focus{outline:none}
+  .tpill.actions button{background:none;border:none;font-size:.9rem;cursor:pointer;padding:2px 5px;border-radius:8px;color:var(--muted)}
+  .tpill.actions button:hover{background:var(--card2);color:var(--text)}
+  .viewtab{display:flex;gap:4px;background:var(--card);border-radius:999px;padding:5px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
+  .viewtab button{background:none;border:none;border-radius:999px;padding:7px 15px;font-weight:700;font-size:.79rem;cursor:pointer;color:var(--muted)}
+  .viewtab button.active{background:var(--ink);color:#fff}
+  h1{font-size:1.25rem;font-weight:800;letter-spacing:-.02em;margin-bottom:4px}
+  .sub{color:var(--muted);font-size:.83rem;margin-bottom:16px}
+  .page{display:none}.page.active{display:block;animation:fade .2s}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
+  .panel{background:var(--card);border-radius:24px;padding:20px;margin-bottom:16px;overflow-x:auto;box-shadow:0 10px 30px rgba(0,0,0,.05)}
+  .panel h2{font-size:.95rem;margin-bottom:14px}
+  .panel h2 small{color:var(--muted);font-weight:400;font-size:.76rem}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:900px){.grid2{grid-template-columns:1fr}}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;margin-bottom:16px}
+  .card{background:var(--card);border-radius:22px;padding:15px 16px;box-shadow:0 10px 26px rgba(0,0,0,.05);position:relative;overflow:hidden}
+  .card .lbl{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;font-weight:700}
+  .card .val{font-size:1.05rem;font-weight:800;letter-spacing:-.01em}
+  .card .v2{font-size:.77rem;font-weight:700;margin-top:3px}
+  .card .tag{font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-right:4px}
+  .card.yellow{background:var(--yellow);background-image:radial-gradient(rgba(0,0,0,.07) 1.3px,transparent 1.3px);background-size:13px 13px}
+  .card.yellow .lbl{color:#55561a}
+  .card.orange{background:var(--orange);background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.05) 0 6px,transparent 6px 14px)}
+  .card.orange .lbl{color:#7c3413}
+  .card.orange .val{color:#141414}
+  .card.dark{background:var(--ink);color:#fff}
+  .card.dark .lbl{color:#9b9b9b}
+  .card.dark .tag{color:#8a8a8a}
+  .card.dark .v2{color:#cfcfcf}
+  table{width:100%;border-collapse:collapse;font-size:.83rem}
+  th{text-align:left;color:var(--muted);font-size:.64rem;text-transform:uppercase;letter-spacing:.04em;padding:7px 5px;border-bottom:1px solid var(--line)}
+  td{padding:6px 5px;border-bottom:1px solid var(--line)}
+  td.num,th.num{text-align:right;white-space:nowrap}
+  tr:hover td{background:rgba(20,20,19,.025)}
+  input,select{background:var(--card2);border:1px solid transparent;color:var(--blue);font-weight:600;border-radius:12px;padding:6px 9px;font-size:.82rem}
+  input{width:100px;text-align:right}
+  input.qty{width:56px}
+  input.pct{width:60px}
+  input.txt{width:100%;text-align:left;color:var(--text);font-weight:500;min-width:105px}
+  select{color:var(--blue);cursor:pointer;max-width:170px}
+  input:focus,select:focus{outline:none;border-color:var(--orange);background:#fff}
+  .btn{background:var(--yellow);color:var(--ink);border:none;border-radius:999px;padding:10px 20px;font-weight:800;cursor:pointer;font-size:.84rem;box-shadow:0 6px 16px rgba(0,0,0,.08)}
+  .btn:hover{filter:brightness(.96)}
+  .btn.sec{background:var(--card);color:var(--text);border:1.5px solid var(--ink);box-shadow:none}
+  .del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem}
+  .del:hover{color:var(--red)}
+  .muted{color:var(--muted);font-size:.78rem}
+  .sec-row td{font-weight:700;background:var(--card2)}
+  .total-row td{font-weight:800;font-size:.92rem;border-top:2px solid var(--ink)}
+  .green{color:var(--green)}.red{color:var(--red)}.amber{color:var(--orange)}
+  .legend{display:flex;flex-direction:column;gap:6px;font-size:.78rem}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .legend.h{flex-direction:row;flex-wrap:wrap;gap:12px;margin-top:8px}
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex-shrink:0}
+  .fun-row{margin-bottom:11px}
+  .fun-top{display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:4px}
+  .fun-bar{height:22px;background:var(--card2);border-radius:9px;overflow:hidden;position:relative}
+  .fun-bar i{display:block;height:100%;border-radius:9px;transition:width .3s}
+  .note{font-size:.76rem;color:var(--muted);line-height:1.55;margin-top:10px}
+  .badge{display:inline-block;background:var(--orange);color:#fff;border-radius:999px;padding:3px 12px;font-size:.7rem;font-weight:700}
+  .badge.ok{background:var(--green)}
+  svg text{fill:var(--muted);font-size:10px}
+  .var-pos{color:var(--green);font-weight:700}
+  .var-neg{color:var(--red);font-weight:700}
+  .track{margin-bottom:12px}
+  .track .tt{display:flex;justify-content:space-between;font-size:.79rem;margin-bottom:4px}
+  .track .tb{height:15px;background:var(--card2);border-radius:8px;overflow:hidden}
+  .track .tb i{display:block;height:100%;border-radius:8px;transition:width .3s}
+  .pb{margin-bottom:14px}
+  .pb-lbl{font-size:.8rem;font-weight:700;margin-bottom:4px}
+  .pb-row{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+  .pb-tag{font-size:.58rem;color:var(--muted);text-transform:uppercase;width:30px;flex-shrink:0;font-weight:700}
+  .pb-bar{flex:1;height:13px;background:var(--card2);border-radius:7px;overflow:hidden}
+  .pb-bar i{display:block;height:100%;border-radius:7px;transition:width .3s}
+  .pb-val{font-size:.73rem;font-weight:700;min-width:86px;text-align:right;flex-shrink:0;white-space:nowrap}
+  @media(max-width:760px){
+    .rail{left:10px;right:10px;top:auto;bottom:10px;width:auto;height:58px;flex-direction:row;padding:0 16px;gap:6px}
+    .rail .mark{margin:0 8px 0 0;font-size:1.1rem}
+    .rail button{margin:0}
+    .rail .avatar{margin:0 0 0 auto;width:34px;height:34px;font-size:.8rem}
+    .main{margin-left:0;padding:16px 14px 90px}
+    .brand{font-size:1.3rem}
+  }
+</style>
+</head>
+<body>
+<nav class="rail">
+  <div class="mark" style="background:var(--orange);color:#fff;border-radius:10px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-weight:900;font-family:'Arial Narrow',Arial,sans-serif;font-size:1rem">B</div>
+  <button class="active" id="nav-live" onclick="go('live')" title="Live Dashboard">📊</button>
+  <button id="nav-budget" onclick="go('budget')" title="Budgeting & Realization">💰</button>
+  <button id="nav-deal" onclick="go('deal')" title="Deal Segmentation & ROI">🎯</button>
+  <div class="avatar" title="Dave">D</div>
+</nav>
+<main class="main">
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="bora"><img src="bora-logo.png" alt="BORA" style="height:26px;display:block" onerror="this.outerHTML='BORA'"></span>
+      <div class="brand-title">Sales Dashboard for Client Acquisition<small>trip budgeting · deal segmentation · ROI</small></div>
+    </div>
+    <div class="tpills">
+      <div class="tpill">🧳 <select id="tripSel" onchange="switchTrip(this.value)"></select></div>
+      <div class="tpill">✏️ <input id="tripName" onchange="renameTrip(this.value)" title="Rename this trip"></div>
+      <div class="tpill actions">
+        <button onclick="newTrip()" title="New blank trip">➕</button>
+        <button onclick="dupTrip()" title="Duplicate as template">⧉</button>
+        <button onclick="exportTrip()" title="Export trip (JSON)">⬇</button>
+        <button onclick="document.getElementById('impFile').click()" title="Import trip (JSON)">⬆</button>
+        <button onclick="delTrip()" title="Delete this trip">🗑</button>
+        <input type="file" id="impFile" accept=".json" style="display:none" onchange="importTrip(event)">
+      </div>
+      <div class="viewtab">
+        <button id="vt-plan" onclick="setView('plan')">📐 Plan</button>
+        <button id="vt-real" onclick="setView('real')">✅ Realization</button>
+        <button id="vt-compare" class="active" onclick="setView('compare')">⚖️ Compare</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE 1 -->
+  <div class="page active" id="page-live">
+    <h1>📊 Live Dashboard</h1>
+    <p class="sub">One-glance summary. Realization fills automatically from the budget Actual column, the Realized client list, and Closed upsells.</p>
+    <div class="cards" id="liveKpi"></div>
+    <div class="panel"><h2>Realization tracker</h2><div id="liveTrack"></div></div>
+    <div class="grid2">
+      <div class="panel">
+        <h2>Budget by category</h2>
+        <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+          <div id="donut-live" style="width:145px;height:145px;border-radius:50%;position:relative;flex-shrink:0"></div>
+          <div class="legend" id="donutLegend-live"></div>
+        </div>
+      </div>
+      <div class="panel"><h2>Sales funnel</h2><div id="funnel-live"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><h2>ROI</h2><div id="roi-live"></div></div>
+      <div class="panel"><h2>Payback timeline</h2><div id="pay-live"></div><p class="note" id="payNote-live"></p></div>
+    </div>
+    <div class="panel">
+      <h2>👥 Team sync <small>— one shared dataset for the whole sales team</small></h2>
+      <div id="syncUI"></div>
+    </div>
+  </div>
+
+  <!-- PAGE 2 -->
+  <div class="page" id="page-budget">
+    <h1>💰 Budgeting & Realization</h1>
+    <p class="sub">Plan the spend, log the real spend per line. Compare view shows charts only.</p>
+    <div class="cards" id="budKpi"></div>
+    <div class="panel"><h2>Projection vs realization</h2><div id="budTrack"></div></div>
+    <div class="panel cmp-only"><h2>Variance by category <small>— where realization beat or blew the plan</small></h2><div id="varChart"></div></div>
+    <div class="panel edit-only">
+      <h2>Budget detail & realization <small>— Actual column mirrors your items; blank = not spent yet</small></h2>
+      <div id="budgetTable"></div>
+      <button class="btn sec" style="margin-top:12px" onclick="addRow()">+ Add budget line</button>
+    </div>
+  </div>
+
+  <!-- PAGE 3 -->
+  <div class="page" id="page-deal">
+    <h1>🎯 Deal Segmentation & ROI Analysis</h1>
+    <p class="sub">Plan the funnel and client targets; the sales team logs realized closings and upsells with dates. Pick a period — every KPI and chart below follows it.</p>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <div class="tpill">📅 <select id="periodSel" onchange="setPeriod(this.value)" style="max-width:210px"></select></div>
+      <button class="btn" onclick="downloadReport()">⬇ Download Report</button>
+      <span class="muted" id="periodHint"></span>
+    </div>
+    <div class="cards" id="dealKpi"></div>
+    <div class="panel"><h2>Projection vs realization</h2><div id="dealTrack"></div></div>
+    <div class="panel"><h2>📆 Monthly report <small>— cost/lead · clients acquired · success ratio, compiled from dated entries</small></h2><div id="monthlyTable"></div></div>
+    <div class="panel cmp-only"><h2>Revenue composition <small>— first orders vs repeat boxes vs upsell</small></h2><div id="revComp"></div></div>
+    <div class="grid2">
+      <div class="panel edit-only"><h2>Funnel assumptions <small>— dropdowns</small></h2><div id="assumpTable"></div></div>
+      <div class="panel"><h2>Sales funnel</h2><div id="funnel-deal"></div></div>
+    </div>
+    <div class="panel edit-only">
+      <h2>📝 Client Lead List — Plan <small>— targets · deal value = price/can × total cans</small></h2>
+      <div id="clientTable"></div>
+      <button class="btn sec" style="margin-top:12px" onclick="addClient()">+ Add target client</button>
+    </div>
+    <div class="panel edit-only">
+      <h2>✅ First Order Client List — REALIZED <small>— sales team: one row per client actually closed</small></h2>
+      <div id="realTable"></div>
+      <button class="btn" style="margin-top:12px" onclick="addReal()">+ Log closed client</button>
+    </div>
+    <div class="panel edit-only">
+      <h2>🔁 Existing Client Upsell <small>— reapproach existing clients · Closed counts the increase into realization</small></h2>
+      <div id="upsTable"></div>
+      <button class="btn sec" style="margin-top:12px" onclick="addUps()">+ Add existing client</button>
+    </div>
+    <div class="grid2">
+      <div class="panel"><h2>ROI</h2><div id="roi-deal"></div></div>
+      <div class="panel"><h2>Payback timeline</h2><div id="pay-deal"></div><p class="note" id="payNote-deal"></p></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const fmt=n=>'Rp '+Math.round(n).toLocaleString('en-US'); // comma separators: Rp 380,000
+const fmtS=n=>{const a=Math.abs(n);const s=n<0?'−':'';n=Math.abs(n);
+  if(a>=1e9)return s+'Rp '+(n/1e9).toFixed(1).replace(/\.0$/,'')+' M';
+  if(a>=1e6)return s+'Rp '+(n/1e6).toFixed(1).replace(/\.0$/,'')+' jt';
+  if(a>=1e3)return s+'Rp '+(n/1e3).toFixed(0)+' rb';
+  return s+'Rp '+Math.round(n);};
+const pctf=v=>(v>=0?'+':'')+Math.round(v*100)+'%';
+
+const CATS=['Transportation','Hotel','Entertainment','Event','Samples & materials','Meals & misc'];
+const CAT_COLORS={'Transportation':'#141414','Hotel':'#F0793A','Entertainment':'#E8C51C','Event':'#6B675F','Samples & materials':'#1F9D55','Meals & misc':'#A29E96'};
+const SEGS=['Café / coffee shop','Minimarket / retail','Distributor','Restaurant / hotel','Other'];
+const CANS_PER_BOX=24;
+const UPS_STATUS=['Proposed','Closed','Lost'];
+
+/* ---------- multi-trip store ---------- */
+function defaultTrip(){return {
+ name:'Yogyakarta Jul 2026',
+ budget:[
+  {cat:'Transportation',item:'Train Jakarta–Yogyakarta (return)',unit:600000,qty:2,act:''},
+  {cat:'Transportation',item:'Station transfers',unit:75000,qty:2,act:''},
+  {cat:'Transportation',item:'Local transport (Gojek/Grab), per day',unit:150000,qty:7,act:''},
+  {cat:'Hotel',item:'Hotel city center, per night',unit:450000,qty:6,act:''},
+  {cat:'Entertainment',item:'Client coffee/lunch meetings',unit:200000,qty:12,act:''},
+  {cat:'Entertainment',item:'Closing dinners (top prospects)',unit:500000,qty:2,act:''},
+  {cat:'Event',item:'Tasting event — venue & setup',unit:1500000,qty:1,act:''},
+  {cat:'Event',item:'Event consumables & help',unit:500000,qty:1,act:''},
+  {cat:'Samples & materials',item:'RTD samples (freight), per box',unit:400000,qty:2,act:''},
+  {cat:'Samples & materials',item:'Printing: price lists, order forms',unit:250000,qty:1,act:''},
+  {cat:'Meals & misc',item:'Per diem (own meals), per day',unit:150000,qty:7,act:''},
+  {cat:'Meals & misc',item:'Data / misc',unit:100000,qty:1,act:''},
+ ],
+ contingency:10,
+ A:{leads:40,meetings:24,close:20,boxes:8,horizon:6,cogs:5670},
+ clients:[
+  {name:'Client A',seg:'Café / coffee shop',pct:'',can:13500,cans:48},
+  {name:'Client B',seg:'Minimarket / retail',pct:'',can:13500,cans:48},
+  {name:'Client C',seg:'Distributor',pct:'',can:13000,cans:96},
+ ],
+ realized:[],
+ upsell:[],
+ actual:{meetings:''},
+};}
+const STORE_KEY='tripROI_v2';
+let store=null;
+try{store=JSON.parse(localStorage.getItem(STORE_KEY));}catch(e){}
+if(!store){
+  try{
+    const old=JSON.parse(localStorage.getItem('tripROI_v1'));
+    if(old&&old.trips){
+      old.trips.forEach(t=>{
+        (t.budget||[]).forEach(b=>b.act=b.act||'');
+        t.A=Object.assign({leads:40,meetings:24,close:20,boxes:8},t.A);
+        t.A.horizon=6;t.A.cogs=5670;delete t.A.margin;
+        (t.clients||[]).forEach(cl=>{if(cl.deal&&cl.can&&!cl.cans)cl.cans=Math.max(1,Math.round(cl.deal/cl.can));delete cl.deal;});
+        t.realized=[];t.upsell=[];t.actual={meetings:(t.actual&&t.actual.meetings)||''};
+      });
+      store=old;
+    }
+  }catch(e){}
+}
+if(!store||!Array.isArray(store.trips)||!store.trips.length)store={cur:0,trips:[defaultTrip()]};
+if(store.cur>=store.trips.length)store.cur=0;
+let budget,contingency,A,clients,realized,upsell,actual;
+let view='compare';
+function bindTrip(){
+  const t=store.trips[store.cur],d=defaultTrip();
+  t.budget=t.budget||d.budget;t.budget.forEach(b=>{if(b.act===undefined)b.act='';if(b.actDate===undefined)b.actDate='';});
+  t.A=Object.assign({},d.A,t.A);
+  t.clients=t.clients||[];t.clients.forEach(cl=>{if(cl.cans===undefined)cl.cans=48;if(cl.note===undefined)cl.note='';if(cl.date===undefined)cl.date='';});
+  t.realized=t.realized||[];t.realized.forEach(cl=>{if(cl.note===undefined)cl.note='';if(cl.date===undefined)cl.date='';});
+  t.upsell=t.upsell||[];t.upsell.forEach(u=>{if(u.note===undefined)u.note='';if(u.date===undefined)u.date='';});
+  t.actual=Object.assign({meetings:''},t.actual);
+  if(typeof t.contingency!=='number')t.contingency=10;
+  budget=t.budget;contingency=t.contingency;A=t.A;clients=t.clients;realized=t.realized;upsell=t.upsell;actual=t.actual;
+}
+bindTrip();
+function saveStore(){
+  store.trips[store.cur].contingency=contingency;
+  const sig=JSON.stringify(store.trips);
+  if(sig!==lastSig){lastSig=sig;store.updatedAt=Date.now();schedulePush();}
+  try{localStorage.setItem(STORE_KEY,JSON.stringify(store));}catch(e){}
+}
+function switchTrip(i){store.cur=parseInt(i)||0;bindTrip();render();}
+function renameTrip(v){if(v&&v.trim()){store.trips[store.cur].name=v.trim();render();}}
+function newTrip(){const t=defaultTrip();t.name='New trip '+(store.trips.length+1);store.trips.push(t);store.cur=store.trips.length-1;bindTrip();render();}
+function dupTrip(){
+  const t=JSON.parse(JSON.stringify(store.trips[store.cur]));
+  t.name=store.trips[store.cur].name+' (copy)';
+  t.budget.forEach(b=>b.act='');
+  t.realized=[];t.actual={meetings:''};t.clients=[];
+  store.trips.push(t);store.cur=store.trips.length-1;bindTrip();render();
+}
+function delTrip(){
+  if(store.trips.length<=1){alert('Keep at least one trip — create or duplicate first.');return;}
+  if(!confirm('Delete trip "'+store.trips[store.cur].name+'"? This cannot be undone.'))return;
+  store.trips.splice(store.cur,1);store.cur=0;bindTrip();render();
+}
+function exportTrip(){
+  const t=store.trips[store.cur];
+  const blob=new Blob([JSON.stringify(t,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=(t.name||'trip').replace(/[^\w\-]+/g,'-')+'.json';a.click();
+}
+function importTrip(e){
+  const f=e.target.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{try{
+    const t=JSON.parse(rd.result);
+    if(!t.budget||!t.A)throw 0;
+    store.trips.push(t);store.cur=store.trips.length-1;bindTrip();render();
+  }catch(err){alert('Invalid trip file');}};
+  rd.readAsText(f);e.target.value='';
+}
+function renderTrips(){
+  const sel=document.getElementById('tripSel');
+  if(sel)sel.innerHTML=store.trips.map((t,i)=>`<option value="${i}" ${i===store.cur?'selected':''}>${String(t.name).replace(/</g,'&lt;')}</option>`).join('');
+  const nm=document.getElementById('tripName');if(nm)nm.value=store.trips[store.cur].name;
+}
+function setView(v){view=v;render();}
+
+/* ---------- calculations ---------- */
+const dealOf=cl=>(cl.can||0)*(cl.cans||0);
+const upsEx=u=>(u.exCan||0)*(u.exCans||0);
+const upsNw=u=>(u.nwCan||0)*(u.nwCans||0);
+function calc(){
+  const H=Math.max(1,A.horizon||6);
+  const cogs=A.cogs||0;
+  const sub=budget.reduce((s,b)=>s+b.unit*b.qty,0);
+  const cont=sub*contingency/100;
+  const total=sub+cont;
+  const n=clients.length;
+  const avgDeal=n?clients.reduce((s,c)=>s+dealOf(c),0)/n:0;
+  const avgCans=n?clients.reduce((s,c)=>s+(c.cans||0),0)/n:0;
+  const avgCan=n?clients.reduce((s,c)=>s+(c.can||0),0)/n:13500;
+  const marginPct=avgCan>0?(avgCan-cogs)/avgCan:0;
+  const closings=Math.round(A.leads*A.close/100);
+  const rev1=closings*avgDeal;
+  const gp1=closings*(avgDeal-cogs*avgCans);
+  const repeatCans=A.boxes*CANS_PER_BOX;
+  const repeatRev=closings*repeatCans*avgCan;
+  const repeatGP=closings*repeatCans*(avgCan-cogs);
+  const upsAct=upsell.filter(u=>u.status!=='Lost');
+  const upsIncRev=upsAct.reduce((s,u)=>s+(upsNw(u)-upsEx(u)),0);
+  const upsIncGP=upsAct.reduce((s,u)=>s+((u.nwCan-cogs)*u.nwCans-(u.exCan-cogs)*u.exCans),0);
+  const revH=rev1+repeatRev+upsIncRev;
+  const gpH=gp1+repeatGP+upsIncGP;
+  const gpPerAcct=(avgDeal-cogs*avgCans)+repeatCans*(avgCan-cogs);
+  const cum=[gp1+upsIncGP];
+  for(let m=1;m<=H;m++)cum.push(cum[m-1]+repeatGP/H);
+  let payMonth=null;
+  for(let m=0;m<cum.length;m++){if(cum[m]>=total&&total>0){payMonth=m;break;}}
+  return {H,cogs,sub,cont,total,closings,avgDeal,avgCans,avgCan,marginPct,rev1,gp1,repeatRev,repeatGP,
+    upsIncRev,upsIncGP,revH,gpH,gpPerAcct,
+    breakeven:gpPerAcct>0?Math.ceil(total/gpPerAcct):0,
+    cpl:A.leads?total/A.leads:0,cpa:closings?total/closings:0,
+    roi1:total?((gp1+upsIncGP)-total)/total:0,roiH:total?(gpH-total)/total:0,cum,payMonth};
+}
+/* ---------- reporting period ---------- */
+let period='all'; // 'all' | 'm:YYYY-MM' | 'w:YYYY-MM-DD'
+function setPeriod(v){period=v;render();}
+function weekStartOf(ds){const d=new Date(ds+'T00:00:00');const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function inPeriod(dateStr,per){
+  per=per===undefined?period:per;
+  if(per==='all')return true;
+  if(!dateStr)return false;
+  if(per.startsWith('m:'))return dateStr.slice(0,7)===per.slice(2);
+  return weekStartOf(dateStr)===per.slice(2);
+}
+const mName=m=>{const[y,mo]=m.split('-');return new Date(y,mo-1,1).toLocaleDateString('en-US',{month:'short',year:'numeric'});};
+const esc=s=>String(s??'').replace(/</g,'&lt;');
+function periodLabel(){
+  if(period==='all')return 'All time';
+  if(period.startsWith('m:'))return mName(period.slice(2));
+  return 'Week of '+new Date(period.slice(2)+'T00:00:00').toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'});
+}
+function periodOptions(){
+  const months=new Set(),weeks=new Set();
+  const coll=d=>{if(d){months.add(d.slice(0,7));weeks.add(weekStartOf(d));}};
+  clients.forEach(x=>coll(x.date));realized.forEach(x=>coll(x.date));
+  upsell.forEach(x=>coll(x.date));budget.forEach(b=>coll(b.actDate));
+  return {months:[...months].sort(),weeks:[...weeks].sort()};
+}
+function monthlyRows(){
+  const map={};
+  const add=(d,k,v)=>{if(!d)return;const m=d.slice(0,7);map[m]=map[m]||{leads:0,closed:0,spend:0,rev:0,ups:0};map[m][k]+=v;};
+  clients.forEach(cl=>add(cl.date,'leads',1));
+  realized.forEach(cl=>{add(cl.date,'closed',1);add(cl.date,'rev',dealOf(cl));});
+  upsell.filter(u=>u.status==='Closed').forEach(u=>add(u.date,'ups',upsNw(u)-upsEx(u)));
+  budget.forEach(b=>{if(typeof b.act==='number')add(b.actDate,'spend',b.act);});
+  return Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0]));
+}
+
+function rcalc(c,per){
+  per=per===undefined?'all':per;
+  const H=c.H,cogs=c.cogs;
+  const inP=d=>inPeriod(d,per);
+  const actRows=budget.filter(b=>typeof b.act==='number'&&(per==='all'||inP(b.actDate)));
+  const hasSpend=actRows.length>0;
+  const spend=actRows.reduce((s,b)=>s+b.act,0);
+  const rl=realized.filter(cl=>per==='all'?true:inP(cl.date));
+  const rAcc=rl.length;
+  const rRev1=rl.reduce((s,cl)=>s+dealOf(cl),0);
+  const rGP1=rl.reduce((s,cl)=>s+((cl.can-cogs)*cl.cans),0);
+  const rAvgCan=rAcc?rl.reduce((s,cl)=>s+cl.can,0)/rAcc:c.avgCan;
+  const rAvgDeal=rAcc?rRev1/rAcc:0;
+  const leadsP=clients.filter(cl=>per==='all'?true:inP(cl.date)).length;
+  const closed=upsell.filter(u=>u.status==='Closed'&&(per==='all'||inP(u.date)));
+  const uIncRev=closed.reduce((s,u)=>s+(upsNw(u)-upsEx(u)),0);
+  const uIncGP=closed.reduce((s,u)=>s+((u.nwCan-cogs)*u.nwCans-(u.exCan-cogs)*u.exCans),0);
+  const repeatCans=A.boxes*CANS_PER_BOX;
+  const rRepeatRev=rAcc*repeatCans*rAvgCan;
+  const rRepeatGP=rAcc*repeatCans*(rAvgCan-cogs);
+  const rRevH=rRev1+rRepeatRev+uIncRev;
+  const rGPH=rGP1+rRepeatGP+uIncGP;
+  const has=rAcc>0||hasSpend||closed.length>0;
+  const cum=[rGP1+uIncGP];
+  for(let m=1;m<=H;m++)cum.push(cum[m-1]+rRepeatGP/H);
+  let payMonth=null;
+  if(hasSpend&&spend>0)for(let m=0;m<cum.length;m++){if(cum[m]>=spend){payMonth=m;break;}}
+  return {has,hasSpend,spend,rAcc,rRev1,rGP1,rAvgCan,rAvgDeal,uIncRev,uIncGP,rRevH,rGPH,rRepeatRev,rRepeatGP,cum,payMonth,leadsP,
+    success:leadsP>0?rAcc/leadsP:null,
+    cpl:leadsP>0&&hasSpend?spend/leadsP:null,
+    cpa:hasSpend&&spend>0&&rAcc>0?spend/rAcc:null,
+    roi1:hasSpend&&spend>0?((rGP1+uIncGP)-spend)/spend:null,
+    roiH:hasSpend&&spend>0?(rGPH-spend)/spend:null};
+}
+
+/* ---------- handlers ---------- */
+const numOf=v=>{const x=parseFloat(String(v).replace(/[^\d.\-]/g,''));return isNaN(x)?null:x;};
+const moneyOf=v=>{const x=parseInt(String(v).replace(/[^\d]/g,''),10);return isNaN(x)?null:x;}; // 'Rp 600.000' -> 600000
+const fmtIn=n=>'Rp '+Math.round(n).toLocaleString('en-US'); // money shown inside inputs: Rp 380,000
+function updB(i,f,v){
+  if(f==='cat'||f==='item'){budget[i][f]=v;}
+  else if(f==='act'){budget[i].act=(v===''?'':(moneyOf(v)===null?'':Math.max(0,moneyOf(v))));}
+  else if(f==='actDate'){budget[i].actDate=v;}
+  else if(f==='unit'){const x=moneyOf(v);if(x===null||x<0)return;budget[i].unit=x;}
+  else{const x=numOf(v);if(x===null||x<0)return;budget[i][f]=x;}
+  render();
+}
+function addRow(){budget.push({cat:'Transportation',item:'New item — rename me',unit:0,qty:1,act:''});render();}
+function delRow(i){budget.splice(i,1);render();}
+function updC(v){const x=numOf(v);if(x!==null&&x>=0){contingency=x;render();}}
+function updA(k,v){let x=(k==='cogs'?moneyOf(v):numOf(v));if(k==='horizon'&&x!==null)x=Math.max(1,Math.min(60,Math.round(x)));if(x!==null&&x>=0){A[k]=x;render();}}
+function updCl(list,i,f,v){
+  const arr=list==='p'?clients:realized;
+  if(f==='name'||f==='seg'||f==='note'||f==='date'){arr[i][f]=v;}
+  else if(f==='pct'){arr[i].pct=v;}
+  else if(f==='can'){const x=moneyOf(v);if(x===null||x<0)return;arr[i].can=x;}
+  else{const x=numOf(v);if(x===null||x<0)return;arr[i][f]=x;}
+  render();
+}
+const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+function addClient(){clients.push({name:'New target',seg:SEGS[0],pct:'',can:13500,cans:48,note:'',date:todayStr()});render();}
+function delClient(i){clients.splice(i,1);render();}
+function addReal(){realized.push({name:'Closed client',seg:SEGS[0],can:13500,cans:48,note:'',date:todayStr()});render();}
+function delReal(i){realized.splice(i,1);render();}
+function updUps(i,f,v){
+  if(f==='name'||f==='status'||f==='note'||f==='date'){upsell[i][f]=v;}
+  else if(f==='exCan'||f==='nwCan'){const x=moneyOf(v);if(x===null||x<0)return;upsell[i][f]=x;}
+  else{const x=numOf(v);if(x===null||x<0)return;upsell[i][f]=x;}
+  render();
+}
+function addUps(){upsell.push({name:'Existing client',status:'Proposed',exCan:13500,exCans:48,nwCan:13500,nwCans:96,note:'',date:todayStr()});render();}
+function delUps(i){upsell.splice(i,1);render();}
+function updAct(k,v){actual[k]=v===''?'':numOf(v);render();}
+
+function dd(onchange,cur,min,max,step,suffix){
+  let has=false,o='';
+  for(let v=min;v<=max;v+=step){if(v==cur)has=true;o+=`<option value="${v}" ${v==cur?'selected':''}>${v}${suffix||''}</option>`;}
+  if(!has)o=`<option value="${cur}" selected>${cur}${suffix||''}</option>`+o;
+  return `<select onchange="${onchange}">${o}</select>`;
+}
+function go(p){
+  document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('.rail button').forEach(e=>e.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.getElementById('nav-'+p).classList.add('active');
+}
+
+/* ---------- chart builders ---------- */
+function donutHTML(c,r){
+  const useAct=view==='real'&&r.hasSpend;
+  const valOf=b=>useAct?(typeof b.act==='number'?b.act:0):b.unit*b.qty;
+  const byCat={};budget.forEach(b=>byCat[b.cat]=(byCat[b.cat]||0)+valOf(b));
+  const tot=Object.values(byCat).reduce((s,v)=>s+v,0);
+  let acc=0;
+  const stops=tot>0?Object.entries(byCat).filter(([k,v])=>v>0).map(([k,v])=>{
+    const p1=acc/tot*100;acc+=v;const p2=acc/tot*100;
+    return `${CAT_COLORS[k]||'#999'} ${p1}% ${p2}%`;}).join(','):'';
+  const legend=Object.entries(byCat).filter(([k,v])=>v>0).map(([k,v])=>
+    `<span><i class="dot" style="background:${CAT_COLORS[k]||'#999'}"></i>${k} — ${fmtS(v)}</span>`).join('')+
+    (useAct?'':`<span style="color:var(--muted)"><i class="dot" style="background:var(--card2)"></i>+ contingency ${contingency}% = ${fmtS(c.cont)}</span>`);
+  return {stops,legend,centerLbl:useAct?'ACTUAL':'PLAN',centerVal:useAct?r.spend:c.total};
+}
+function funnelHTML(c,r){
+  const actMeet=actual.meetings===''?null:actual.meetings;
+  if(view==='real'){
+    const steps=[
+      ['Leads contacted <span class="muted">(plan — no actual tracked)</span>',A.leads,'#A29E96'],
+      ['Meetings held — actual',actMeet===null?0:actMeet,'#F0793A'],
+      ['Closings — realized',r.rAcc,'#1F9D55']];
+    const maxF=Math.max(...steps.map(s=>s[1]),1);
+    return steps.map(([n,v,col])=>`
+      <div class="fun-row"><div class="fun-top"><span>${n}</span><b>${v}</b></div>
+      <div class="fun-bar"><i style="width:${v/maxF*100}%;background:${col}"></i></div></div>`).join('')+
+      `<div class="fun-top" style="border-top:1px solid var(--line);padding-top:9px;margin-top:4px">
+        <span class="muted">Realized closings come from the Realized client list</span>
+        <span class="badge ${r.rAcc>=c.closings?'ok':''}">${r.rAcc} closed vs ${c.closings} target</span></div>`;
+  }
+  if(view==='compare'){
+    const steps=[
+      ['Leads contacted',A.leads,null,'#141414'],
+      ['Meetings held',A.meetings,actMeet,'#F0793A'],
+      ['Closings',c.closings,r.rAcc>0?r.rAcc:null,'#E8C51C']];
+    const maxF=Math.max(...steps.flatMap(s=>[s[1],s[2]||0]),1);
+    return steps.map(([n,plan,act,col])=>`
+      <div class="pb"><div class="pb-lbl">${n}</div>
+      <div class="pb-row"><span class="pb-tag">plan</span><div class="pb-bar"><i style="width:${plan/maxF*100}%;background:${col};opacity:.55"></i></div><span class="pb-val">${plan}</span></div>
+      <div class="pb-row"><span class="pb-tag">real</span><div class="pb-bar"><i style="width:${act!==null?Math.min(100,act/maxF*100):0}%;background:var(--green)"></i></div><span class="pb-val">${act!==null?act:'—'}</span></div></div>`).join('')+
+      `<div class="fun-top" style="border-top:1px solid var(--line);padding-top:9px;margin-top:4px">
+        <span class="muted">Closings = Leads × ${A.close}% · leads have no actual tracking</span>
+        <span class="badge ${r.rAcc>=c.closings?'ok':''}">plan ${c.closings} · real ${r.rAcc}</span></div>`;
+  }
+  const steps=[
+    ['Leads contacted',A.leads,'#141414'],
+    ['Meetings held',A.meetings,'#F0793A'],
+    ['Closings',c.closings,'#E8C51C']];
+  const maxF=Math.max(...steps.map(s=>s[1]),1);
+  return steps.map(([n,plan,col])=>`
+    <div class="fun-row"><div class="fun-top"><span>${n}</span><b>${plan}</b></div>
+    <div class="fun-bar"><i style="width:${plan/maxF*100}%;background:${col};opacity:.9"></i></div></div>`).join('')+
+    `<div class="fun-top" style="border-top:1px solid var(--line);padding-top:9px;margin-top:4px">
+      <span class="muted">Closings = Leads × ${A.close}%</span>
+      <span class="badge ${c.closings>=c.breakeven?'ok':''}">plan ${c.closings}</span></div>`;
+}
+function roiHTML(c,r){
+  const groups=[['First orders + upsell',c.roi1,r.roi1],['Full '+c.H+'-month',c.roiH,r.roiH]];
+  const showPlan=view!=='real', showReal=view!=='plan'&&r.roiH!==null;
+  let vals=[];
+  groups.forEach(g=>{if(showPlan)vals.push(g[1]);if(showReal&&g[2]!==null)vals.push(g[2]);});
+  if(!vals.length)return '<p class="note">Fill the budget Actual column to unlock realized ROI.</p>';
+  const roiMax=Math.max(...vals.map(Math.abs),0.2);
+  const W=460,Hh=190,mid=Hh/2;
+  let s=`<svg viewBox="0 0 ${W} ${Hh+28}" style="width:100%">`;
+  s+=`<line x1="28" y1="${mid}" x2="${W-8}" y2="${mid}" stroke="var(--ink)" stroke-width="1.5"/><text x="2" y="${mid+3}">0%</text>`;
+  groups.forEach((g,i)=>{
+    const gx=60+i*210,bw=showPlan&&showReal?62:110;
+    let x=gx;
+    const bar=(v,fill,label)=>{
+      if(v===null)return;
+      const h=Math.abs(v)/roiMax*(Hh/2-16),y=v>=0?mid-h:mid;
+      s+=`<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(h,2)}" rx="7" fill="${fill}"/>`;
+      s+=`<text x="${x+bw/2}" y="${v>=0?y-5:y+h+12}" text-anchor="middle" style="font-weight:700;fill:${fill};font-size:11px">${Math.round(v*100)}%</text>`;
+      s+=`<text x="${x+bw/2}" y="${Hh+12}" text-anchor="middle">${label}</text>`;
+      x+=bw+10;
+    };
+    if(showPlan)bar(g[1],'#A29E96','plan');
+    if(showReal)bar(g[2],g[2]!==null&&g[2]>=0?'#1F9D55':'#E0442E','real');
+    s+=`<text x="${gx+(showPlan&&showReal?bw+5:bw/2)}" y="${Hh+26}" text-anchor="middle" style="font-weight:700;fill:var(--text)">${g[0]}</text>`;
+  });
+  return s+'</svg>';
+}
+function payHTML(c,r){
+  const H=c.H,W=460,Hh=185,pad=42;
+  const showPlan=view!=='real', showReal=view!=='plan'&&r.has&&r.hasSpend;
+  const allVals=[...(showPlan?c.cum:[]),...(showReal?r.cum:[]),showPlan?c.total:0,showReal?r.spend:0];
+  const maxV=Math.max(...allVals,1)*1.08;
+  const X=m=>pad+m/H*(W-pad-12),Y=v=>Hh-14-(Math.max(v,0)/maxV)*(Hh-30);
+  let s=`<svg viewBox="0 0 ${W} ${Hh+22}" style="width:100%">`;
+  if(showPlan){
+    s+=`<line x1="${pad}" y1="${Y(c.total)}" x2="${W-12}" y2="${Y(c.total)}" stroke="#A29E96" stroke-dasharray="5 4" stroke-width="1.3"/>`;
+    s+=`<text x="${pad+2}" y="${Y(c.total)-4}">plan cost ${fmtS(c.total)}</text>`;
+    s+=`<path d="${c.cum.map((v,m)=>(m?'L':'M')+X(m).toFixed(1)+','+Y(v).toFixed(1)).join(' ')}" fill="none" stroke="#A29E96" stroke-width="2" stroke-dasharray="6 4"/>`;
+  }
+  if(showReal){
+    s+=`<line x1="${pad}" y1="${Y(r.spend)}" x2="${W-12}" y2="${Y(r.spend)}" stroke="var(--orange)" stroke-dasharray="5 4" stroke-width="1.3"/>`;
+    s+=`<text x="${W-14}" y="${Y(r.spend)-4}" text-anchor="end" style="fill:var(--orange)">actual spend ${fmtS(r.spend)}</text>`;
+    s+=`<path d="${r.cum.map((v,m)=>(m?'L':'M')+X(m).toFixed(1)+','+Y(v).toFixed(1)).join(' ')}" fill="none" stroke="var(--green)" stroke-width="2.5"/>`;
+    if(r.payMonth!==null)s+=`<circle cx="${X(r.payMonth)}" cy="${Y(r.cum[r.payMonth])}" r="7" fill="none" stroke="var(--green)" stroke-width="2.5"/>`;
+  }
+  if(showPlan&&c.payMonth!==null)s+=`<circle cx="${X(c.payMonth)}" cy="${Y(c.cum[c.payMonth])}" r="6" fill="none" stroke="#A29E96" stroke-width="2"/>`;
+  for(let m=0;m<=H;m++)s+=`<text x="${X(m)}" y="${Hh+16}" text-anchor="middle">M${m}</text>`;
+  return s+'</svg>'+
+    `<div class="legend h">${showPlan?'<span><i class="dot" style="background:#A29E96"></i>Plan</span>':''}${showReal?'<span><i class="dot" style="background:var(--green)"></i>Realization</span>':''}</div>`;
+}
+function payNote(c,r){
+  let t='';
+  if(view!=='real')t+=c.payMonth===null?
+    `Plan: doesn't pay back within ${c.H} months — add closings, boxes, upsells, or cut cost. `:
+    `Plan: pays back in <b>month ${c.payMonth}</b>. `;
+  if(view!=='plan'&&r.has&&r.hasSpend)t+=r.payMonth===null?
+    `Realization: not yet paid back within ${c.H} months at current numbers.`:
+    `Realization: pays back in <b class="green">month ${r.payMonth}</b>.`;
+  if(view!=='plan'&&(!r.has||!r.hasSpend))t+='Realization curve appears once actual spend and realized closings are logged.';
+  return t+` M0 = first orders + closed upsells; repeat boxes (${A.boxes}/client) spread across M1–M${c.H}.`;
+}
+function varianceHTML(c,r){
+  const rows=CATS.map(k=>{
+    const items=budget.filter(b=>b.cat===k);
+    const acts=items.filter(b=>typeof b.act==='number');
+    if(!acts.length)return null;
+    const plan=items.reduce((s,b)=>s+b.unit*b.qty,0);
+    const act=acts.reduce((s,b)=>s+b.act,0);
+    return [k,act-plan];
+  }).filter(Boolean);
+  if(!rows.length)return '<p class="note">Fill the Actual column (Budgeting page, ✅ Realization view) — variance per category appears here.</p>';
+  rows.push(['TOTAL',r.spend-c.total]);
+  const maxA=Math.max(...rows.map(x=>Math.abs(x[1])),1);
+  const W=460,rowH=36,Hh=rows.length*rowH+6,cx=W/2;
+  let s=`<svg viewBox="0 0 ${W} ${Hh}" style="width:100%">`;
+  s+=`<line x1="${cx}" y1="0" x2="${cx}" y2="${Hh-4}" stroke="var(--line)" stroke-width="1.5"/>`;
+  rows.forEach(([k,dv],i)=>{
+    const y=i*rowH+10,bw=Math.abs(dv)/maxA*(W/2-92);
+    const over=dv>0;
+    s+=`<rect x="${over?cx:cx-Math.max(bw,2)}" y="${y}" width="${Math.max(bw,2)}" height="16" rx="8" fill="${over?'var(--red)':'var(--green)'}"/>`;
+    s+=`<text x="${over?cx-6:cx+6}" y="${y+12}" text-anchor="${over?'end':'start'}" style="font-weight:700;fill:var(--text);font-size:9.5px">${k}</text>`;
+    s+=`<text x="${over?cx+Math.max(bw,2)+5:cx-Math.max(bw,2)-5}" y="${y+12}" text-anchor="${over?'start':'end'}" style="fill:${over?'var(--red)':'var(--green)'};font-weight:700;font-size:9.5px">${(dv>0?'+':'')+fmtS(dv)}</text>`;
+  });
+  s+='</svg>';
+  return s+'<div class="legend h"><span><i class="dot" style="background:var(--green)"></i>Under plan (saving)</span><span><i class="dot" style="background:var(--red)"></i>Over plan</span></div>';
+}
+function revCompHTML(c,r){
+  const mk=(rows)=>rows.filter(x=>x[1]>0);
+  const plan=mk([['First orders',c.rev1],['Repeat boxes',c.repeatRev],['Upsell increase',Math.max(0,c.upsIncRev)]]);
+  const real=mk([['First orders',r.rRev1],['Repeat boxes',r.rRepeatRev],['Upsell increase',Math.max(0,r.uIncRev)]]);
+  const COLS={'First orders':'#141414','Repeat boxes':'#F0793A','Upsell increase':'#E8C51C'};
+  const tp=plan.reduce((s,x)=>s+x[1],0),tr=real.reduce((s,x)=>s+x[1],0);
+  const maxT=Math.max(tp,tr,1);
+  const bar=(rows,total,label)=>`<div class="pb"><div class="pb-lbl">${label} — ${fmtS(total)}</div>
+      <div class="pb-bar" style="height:24px;display:flex">${rows.map(([n,v])=>
+        `<i style="width:${v/maxT*100}%;background:${COLS[n]}" title="${n}: ${fmtS(v)}"></i>`).join('')}</div></div>`;
+  return bar(plan,tp,'Plan · '+c.H+' months')+
+    (r.rAcc>0||r.uIncRev>0?bar(real,tr,'Realization · '+c.H+' months'):'<p class="note">Log realized closings or closed upsells to draw the realization bar.</p>')+
+    `<div class="legend h"><span><i class="dot" style="background:#141414"></i>First orders</span>
+     <span><i class="dot" style="background:#F0793A"></i>Repeat boxes (projected)</span>
+     <span><i class="dot" style="background:#E8C51C"></i>Upsell increase</span></div>`;
+}
+function pairBars(rows){
+  return rows.map(([label,plan,real,fmtF,invert])=>{
+    const has=real!==null&&real!==''&&real!==undefined;
+    const maxV=Math.max(plan,has?real:0,1);
+    const good=has?(invert?real<=plan:real>=plan):true;
+    return `<div class="pb"><div class="pb-lbl">${label}</div>
+      <div class="pb-row"><span class="pb-tag">plan</span><div class="pb-bar"><i style="width:${plan/maxV*100}%;background:#A29E96"></i></div><span class="pb-val">${fmtF(plan)}</span></div>
+      <div class="pb-row"><span class="pb-tag">real</span><div class="pb-bar"><i style="width:${has?real/maxV*100:0}%;background:${has?(good?'var(--green)':'var(--red)'):'var(--card2)'}"></i></div><span class="pb-val">${has?fmtF(real):'—'}</span></div></div>`;
+  }).join('');
+}
+function trackBar(label,plan,act,fmtF,invert){
+  const has=act!==null&&act!==''&&act!==undefined;
+  const p=has&&plan>0?act/plan*100:0;
+  const good=has?(invert?act<=plan:act>=plan):true;
+  return `<div class="track"><div class="tt"><span>${label}</span>
+    <span>${has?fmtF(act):'—'} <span class="muted">/ ${fmtF(plan)} plan</span></span></div>
+    <div class="tb"><i style="width:${Math.min(100,p)}%;background:${has?(good?'var(--green)':'var(--red)'):'var(--card2)'}"></i></div></div>`;
+}
+function pr(lbl1,v1,lbl2,v2,cls2){
+  if(view==='plan')return `<div class="val">${v1}</div>`;
+  if(view==='real')return `<div class="val ${cls2||''}">${v2}</div>
+    <div class="v2" style="font-weight:500"><span class="tag">plan</span>${v1}</div>`;
+  return `<div><span class="tag">${lbl1}</span><span class="val" style="font-size:.93rem">${v1}</span></div>
+    <div class="v2 ${cls2||''}"><span class="tag">${lbl2}</span>${v2}</div>`;
+}
+const PLAN_HINT='<p class="note" style="margin:0">📐 Plan view — switch to ✅ Realization or ⚖️ Compare to track actuals here.</p>';
+
+/* ---------- team sync (shared GitHub Gist) ---------- */
+const GIST_FILE='bora-sales-sync.json';
+let syncTimer=null,syncState='',lastSig='';
+function setSync(msg,color){syncState=msg;const el=document.getElementById('syncStatus');if(el){el.textContent=msg;el.style.color=color||'var(--muted)';}}
+function ghHeaders(tok){return{'Authorization':'Bearer '+(tok||(store.sync&&store.sync.token)||''),'Accept':'application/vnd.github+json','Content-Type':'application/json'};}
+function schedulePush(){if(!store.sync||!store.sync.gistId)return;clearTimeout(syncTimer);setSync('Syncing…');syncTimer=setTimeout(syncPush,3000);}
+async function syncPush(){
+  if(!store.sync||!store.sync.gistId)return;
+  try{
+    const body=JSON.stringify({trips:store.trips,updatedAt:store.updatedAt||Date.now()});
+    const r=await fetch('https://api.github.com/gists/'+store.sync.gistId,{method:'PATCH',headers:ghHeaders(),
+      body:JSON.stringify({files:{[GIST_FILE]:{content:body}}})});
+    if(!r.ok)throw 0;
+    setSync('✓ Synced '+new Date().toLocaleTimeString(),'var(--green)');
+  }catch(e){setSync('⚠️ Sync failed — check connection or token','var(--red)');}
+}
+async function syncPull(silent){
+  if(!store.sync||!store.sync.gistId)return;
+  try{
+    setSync('Checking team data…');
+    const r=await fetch('https://api.github.com/gists/'+store.sync.gistId,{headers:ghHeaders()});
+    if(!r.ok)throw 0;
+    const g=await r.json();
+    if(!g.files||!g.files[GIST_FILE])throw 0;
+    const remote=JSON.parse(g.files[GIST_FILE].content);
+    if(remote.trips&&remote.trips.length&&(remote.updatedAt||0)>(store.updatedAt||0)){
+      store.trips=remote.trips;store.updatedAt=remote.updatedAt;
+      if(store.cur>=store.trips.length)store.cur=0;
+      lastSig=JSON.stringify(store.trips);
+      bindTrip();render();
+      setSync('✓ Updated from team '+new Date().toLocaleTimeString(),'var(--green)');
+    }else setSync('✓ Up to date','var(--green)');
+  }catch(e){setSync('⚠️ Could not reach team data','var(--red)');}
+}
+async function connectSync(){
+  const tok=document.getElementById('ghToken').value.trim();
+  if(!tok){alert('Paste the team token first.');return;}
+  setSync('Connecting…');
+  try{
+    const r=await fetch('https://api.github.com/gists?per_page=100',{headers:ghHeaders(tok)});
+    if(!r.ok)throw 0;
+    const gists=await r.json();
+    const found=gists.find(g=>g.files&&g.files[GIST_FILE]);
+    if(found){
+      store.sync={token:tok,gistId:found.id};
+      const dr=await fetch('https://api.github.com/gists/'+found.id,{headers:ghHeaders(tok)});
+      const dg=await dr.json();
+      let remote=null;try{remote=JSON.parse(dg.files[GIST_FILE].content);}catch(e){}
+      const localEmpty=store.trips.length===1&&!store.trips[0].realized.length&&!store.trips[0].budget.some(b=>typeof b.act==='number');
+      if(remote&&remote.trips&&remote.trips.length&&(localEmpty||confirm('Team data found in the cloud.\n\nOK = load TEAM data onto this device (replaces local)\nCancel = keep THIS device\'s data and overwrite the team copy'))){
+        store.trips=remote.trips;store.updatedAt=remote.updatedAt||Date.now();
+        store.cur=0;lastSig=JSON.stringify(store.trips);
+        bindTrip();
+      }
+      saveStore();render();setSync('✓ Team sync enabled','var(--green)');
+    }else{
+      const cr=await fetch('https://api.github.com/gists',{method:'POST',headers:ghHeaders(tok),
+        body:JSON.stringify({description:'BORA Sales Dashboard — team dataset',public:false,
+        files:{[GIST_FILE]:{content:JSON.stringify({trips:store.trips,updatedAt:Date.now()})}}})});
+      if(!cr.ok)throw 0;
+      const g=await cr.json();
+      store.sync={token:tok,gistId:g.id};
+      saveStore();render();setSync('✓ Team sync enabled — now share the token with your team','var(--green)');
+    }
+  }catch(e){setSync('⚠️ Invalid token or network error','var(--red)');}
+}
+function disconnectSync(){
+  if(!confirm('Disconnect this device from team sync? The team copy stays in the cloud.'))return;
+  delete store.sync;saveStore();render();
+}
+function renderSync(){
+  const el=document.getElementById('syncUI');if(!el)return;
+  if(store.sync&&store.sync.gistId){
+    el.innerHTML=`<p class="muted" style="margin-bottom:8px">Connected — the whole team works on ONE dataset. Edits push ~3s after you stop typing; the app pulls the latest every time it opens. Avoid two people editing at the exact same moment (last save wins) — use ⟳ Pull before a data-entry session.</p>
+      <p id="syncStatus" class="muted" style="margin-bottom:10px">${syncState}</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn sec" onclick="syncPull()">⟳ Pull latest</button>
+        <button class="btn sec" onclick="syncPush()">↑ Push now</button>
+        <button class="btn sec" style="border-color:var(--red);color:var(--red)" onclick="disconnectSync()">Disconnect</button>
+      </div>`;
+  }else{
+    el.innerHTML=`<p class="muted" style="margin-bottom:10px">Connect every team member to one shared dataset — free, via a secret GitHub Gist.</p>
+      <ol class="muted" style="font-size:.8rem;line-height:1.7;margin:0 0 12px 18px">
+        <li><b>One person (you), once:</b> github.com/settings/tokens → Generate new token (classic) → tick ONLY the <b>gist</b> scope → copy it</li>
+        <li>Paste it below → <b>Connect</b> — this creates the team dataset in the cloud</li>
+        <li>Send the token to each sales member — they paste the <b>same token</b> here on their device, done</li>
+      </ol>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="flex:2;min-width:220px"><input class="txt" id="ghToken" type="password" placeholder="ghp_… team token" autocomplete="off" style="width:100%"></div>
+        <button class="btn" onclick="connectSync()">Connect team sync</button>
+      </div>
+      <p class="muted" style="margin-top:8px;font-size:.72rem">The token can only touch gists — nothing else on the GitHub account. Data sits in a secret gist reachable only via the token.</p>`;
+  }
+}
+
+/* ---------- downloadable report (print → PDF) ---------- */
+function downloadReport(){
+  const c=calc(),rP=rcalc(c,period);
+  const inP=d=>inPeriod(d,period);
+  const rl=realized.filter(cl=>period==='all'?true:inP(cl.date));
+  const ups=upsell.filter(u=>u.status==='Closed'&&(period==='all'||inP(u.date)));
+  const mrows=monthlyRows();
+  const kpi=(l,v)=>`<span class="kpi">${l}<b>${v}</b></span>`;
+  const html=`<!DOCTYPE html><html><head><title>BORA Sales Report — ${esc(periodLabel())}</title><style>
+    body{font-family:Arial,Helvetica,sans-serif;color:#141414;margin:34px}
+    .hd{background:#E4551D;color:#fff;padding:18px 22px;border-radius:14px;display:flex;justify-content:space-between;align-items:center}
+    .hd b{font-size:1.6rem;letter-spacing:-.5px;font-family:'Arial Narrow',Arial,sans-serif}
+    h2{font-size:1rem;margin:24px 0 8px;border-bottom:2px solid #141414;padding-bottom:4px}
+    table{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:6px}
+    th,td{border:1px solid #ddd;padding:5px 8px;text-align:left;vertical-align:top}
+    th{background:#F1EFE9;text-transform:uppercase;font-size:9.5px}
+    td.n,th.n{text-align:right;white-space:nowrap}
+    .kpi{display:inline-block;border:1.5px solid #141414;border-radius:12px;padding:9px 14px;margin:4px 6px 4px 0;font-size:11px}
+    .kpi b{display:block;font-size:1.15rem;margin-top:2px}
+    .muted{color:#777;font-size:10.5px}
+    @media print{body{margin:12mm}}
+  </style></head><body>
+  <div class="hd"><span><b>BORA</b><br>Sales Report — Client Acquisition</span>
+    <span style="text-align:right;font-size:12px">${esc(store.trips[store.cur].name)}<br><b style="font-size:1rem">${esc(periodLabel())}</b><br>generated ${new Date().toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'})}</span></div>
+
+  <h2>Key metrics — ${esc(periodLabel())}</h2>
+  ${kpi('Leads approached',rP.leadsP)}
+  ${kpi('Clients acquired',rP.rAcc)}
+  ${kpi('Success ratio',rP.success!==null?Math.round(rP.success*100)+'%':'—')}
+  ${kpi('Cost / lead',rP.cpl!==null?fmtS(rP.cpl):'—')}
+  ${kpi('Cost / account',rP.cpa!==null?fmtS(rP.cpa):'—')}
+  ${kpi('Spend',rP.hasSpend?fmtS(rP.spend):'—')}
+  ${kpi('First-order revenue',fmtS(rP.rRev1))}
+  ${kpi('Upsell increase',fmtS(rP.uIncRev))}
+  ${kpi('ROI ('+c.H+'-mo projection)',rP.roiH!==null?pctf(rP.roiH):'—')}
+
+  <h2>Monthly compilation</h2>
+  <table><tr><th>Month</th><th class=n>Leads</th><th class=n>Acquired</th><th class=n>Success</th><th class=n>Spend</th><th class=n>Cost/lead</th><th class=n>Cost/acq</th><th class=n>Revenue</th></tr>
+  ${mrows.map(([m,v])=>`<tr><td>${mName(m)}</td><td class=n>${v.leads}</td><td class=n>${v.closed}</td><td class=n>${v.leads?Math.round(v.closed/v.leads*100)+'%':'—'}</td><td class=n>${fmtS(v.spend)}</td><td class=n>${v.leads&&v.spend?fmtS(v.spend/v.leads):'—'}</td><td class=n>${v.closed&&v.spend?fmtS(v.spend/v.closed):'—'}</td><td class=n>${fmtS(v.rev+v.ups)}</td></tr>`).join('')||'<tr><td colspan="8" class="muted">No dated entries yet</td></tr>'}
+  </table>
+
+  <h2>Clients acquired${period==='all'?'':' — '+esc(periodLabel())}</h2>
+  <table><tr><th>Date</th><th>Client</th><th>Segment</th><th class=n>Price/can</th><th class=n>Cans</th><th class=n>Deal value</th><th>Comment</th></tr>
+  ${rl.map(cl=>`<tr><td>${cl.date||'—'}</td><td>${esc(cl.name)}</td><td>${esc(cl.seg)}</td><td class=n>${fmt(cl.can)}</td><td class=n>${cl.cans}</td><td class=n>${fmt(dealOf(cl))}</td><td>${esc(cl.note)}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">None in this period</td></tr>'}
+  </table>
+
+  <h2>Closed upsells${period==='all'?'':' — '+esc(periodLabel())}</h2>
+  <table><tr><th>Date</th><th>Client</th><th class=n>Existing deal</th><th class=n>New deal</th><th class=n>Increase</th><th>Comment</th></tr>
+  ${ups.map(u=>`<tr><td>${u.date||'—'}</td><td>${esc(u.name)}</td><td class=n>${fmt(upsEx(u))}</td><td class=n>${fmt(upsNw(u))}</td><td class=n>+${fmt(upsNw(u)-upsEx(u))}</td><td>${esc(u.note)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">None in this period</td></tr>'}
+  </table>
+
+  <p class="muted">Cost per lead = spend ÷ leads approached · Success ratio = acquired ÷ approached · ROI = (gross profit @ ${Math.round(c.marginPct*100)}% margin, incl. ${A.boxes} repeat boxes/client over ${c.H} months − spend) ÷ spend · Generated from BORA Sales Dashboard</p>
+  <scr`+`ipt>window.onload=function(){setTimeout(function(){window.print();},400);};</scr`+`ipt>
+  </body></html>`;
+  const w=window.open('','_blank');
+  if(!w){alert('Please allow pop-ups to download the report.');return;}
+  w.document.write(html);w.document.close();
+}
+
+/* ---------- render ---------- */
+function renderPeriodSel(){
+  const sel=document.getElementById('periodSel');if(!sel)return;
+  const {months,weeks}=periodOptions();
+  let o=`<option value="all" ${period==='all'?'selected':''}>All time</option>`;
+  if(months.length)o+='<optgroup label="Months">'+months.map(m=>`<option value="m:${m}" ${period==='m:'+m?'selected':''}>${mName(m)}</option>`).join('')+'</optgroup>';
+  if(weeks.length)o+='<optgroup label="Weeks">'+weeks.map(w=>`<option value="w:${w}" ${period==='w:'+w?'selected':''}>Wk of ${new Date(w+'T00:00:00').toLocaleDateString('en-US',{day:'numeric',month:'short'})}</option>`).join('')+'</optgroup>';
+  sel.innerHTML=o;
+  const hint=document.getElementById('periodHint');
+  if(hint)hint.textContent=period==='all'?'':'Deal KPIs & charts filtered to '+periodLabel();
+}
+function render(){
+  const c=calc();
+  const r=rcalc(c,'all');
+  const rP=rcalc(c,period);
+  document.querySelectorAll('.viewtab button').forEach(b=>b.classList.remove('active'));
+  const vb=document.getElementById('vt-'+view);if(vb)vb.classList.add('active');
+  document.querySelectorAll('.edit-only').forEach(e=>e.style.display=view==='compare'?'none':'');
+  document.querySelectorAll('.cmp-only').forEach(e=>e.style.display=view==='compare'?'':'none');
+
+  // LIVE
+  document.getElementById('liveKpi').innerHTML=`
+    <div class="card yellow"><div class="lbl">Trip cost</div>${pr('plan',fmtS(c.total),'real',r.hasSpend?fmtS(r.spend):'—',r.hasSpend?(r.spend<=c.total?'green':'red'):'')}</div>
+    <div class="card orange"><div class="lbl">New accounts</div>${pr('plan',c.closings,'real',r.rAcc||'—','')}</div>
+    <div class="card"><div class="lbl">Cost / account</div>${pr('plan',c.closings?fmtS(c.cpa):'—','real',r.cpa!==null?fmtS(r.cpa):(r.hasSpend?'awaiting closings':'—'),r.cpa!==null&&r.cpa<=c.cpa?'green':'')}</div>
+    <div class="card"><div class="lbl">Upsell increase</div>${pr('proposed',fmtS(c.upsIncRev),'closed',fmtS(r.uIncRev),r.uIncRev>0?'green':'')}</div>
+    <div class="card"><div class="lbl">${c.H}-mo revenue</div>${pr('plan',fmtS(c.revH),'real',r.has?fmtS(r.rRevH):'—','')}</div>
+    <div class="card dark"><div class="lbl">ROI ${c.H}-month</div>${pr('plan',pctf(c.roiH),'real',r.roiH!==null?pctf(r.roiH):'—',r.roiH!==null?(r.roiH>=0?'green':'red'):'')}</div>
+    <div class="card dark"><div class="lbl">Payback</div>${pr('plan',c.payMonth!==null?'M'+c.payMonth:'> '+c.H+' mo','real',r.payMonth!==null?'M'+r.payMonth:(r.hasSpend?'not yet':'—'),r.payMonth!==null?'green':'')}</div>`;
+  const liveRows=[
+    ['Spend vs budget',c.total,r.hasSpend?r.spend:null,fmtS,true],
+    ['Meetings held vs plan',A.meetings,actual.meetings===''?null:actual.meetings,v=>v],
+    ['Accounts closed vs target',c.closings,r.rAcc||null,v=>v],
+    ['First-order revenue vs plan',c.rev1,r.rAcc?r.rRev1:null,fmtS],
+    ['Upsell increase closed vs proposed',c.upsIncRev,upsell.some(u=>u.status==='Closed')?r.uIncRev:null,fmtS]];
+  document.getElementById('liveTrack').innerHTML=view==='plan'?PLAN_HINT:
+    view==='compare'?pairBars(liveRows):
+    liveRows.map(a=>trackBar(...a)).join('');
+
+  const dn=donutHTML(c,r);
+  const d=document.getElementById('donut-live');
+  d.style.background=dn.stops?`conic-gradient(${dn.stops})`:'var(--card2)';
+  d.innerHTML=`<div style="position:absolute;inset:29px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;flex-direction:column">
+    <span style="font-size:.58rem;color:var(--muted)">${dn.centerLbl}</span><b style="font-size:.76rem">${fmtS(dn.centerVal)}</b></div>`;
+  document.getElementById('donutLegend-live').innerHTML=dn.legend;
+  document.getElementById('funnel-live').innerHTML=funnelHTML(c,r);
+  document.getElementById('funnel-deal').innerHTML=funnelHTML(c,rP);
+  document.getElementById('roi-live').innerHTML=roiHTML(c,r);
+  document.getElementById('roi-deal').innerHTML=roiHTML(c,rP)+
+    `<p class="note">ROI = (gross profit − cost) ÷ cost. GP per can = price − COGS (${fmt(c.cogs)}), margin ≈ ${Math.round(c.marginPct*100)}% at avg price ${fmt(c.avgCan)}/can. Upsell counts only the INCREASE.</p>`;
+  document.getElementById('pay-live').innerHTML=payHTML(c,r);
+  document.getElementById('pay-deal').innerHTML=payHTML(c,rP);
+  document.getElementById('payNote-live').innerHTML=payNote(c,r);
+  document.getElementById('payNote-deal').innerHTML=payNote(c,rP);
+
+  // BUDGET
+  const spendVar=r.hasSpend?r.spend-c.total:null;
+  document.getElementById('budKpi').innerHTML=view==='plan'?`
+    <div class="card yellow"><div class="lbl">Planned budget</div><div class="val">${fmtS(c.total)}</div></div>
+    <div class="card"><div class="lbl">Subtotal</div><div class="val">${fmtS(c.sub)}</div></div>
+    <div class="card"><div class="lbl">Contingency ${contingency}%</div><div class="val">${fmtS(c.cont)}</div></div>
+    <div class="card dark"><div class="lbl">Cost / target account</div><div class="val">${c.closings?fmtS(c.cpa):'—'}</div></div>`:`
+    <div class="card yellow"><div class="lbl">Planned budget</div><div class="val">${fmtS(c.total)}</div></div>
+    <div class="card orange"><div class="lbl">Actual spend</div><div class="val">${r.hasSpend?fmtS(r.spend):'—'}</div></div>
+    <div class="card"><div class="lbl">Variance</div><div class="val ${spendVar===null?'':spendVar<=0?'green':'red'}">${spendVar===null?'—':(spendVar>0?'+':'')+fmtS(spendVar)}</div></div>
+    <div class="card dark"><div class="lbl">Budget used</div><div class="val">${r.hasSpend&&c.total>0?Math.round(r.spend/c.total*100)+'%':'—'}</div></div>`;
+  const catRows=CATS.map(k=>{
+    const items=budget.filter(b=>b.cat===k);
+    if(!items.length)return null;
+    const plan=items.reduce((s,b)=>s+b.unit*b.qty,0);
+    const acts=items.filter(b=>typeof b.act==='number');
+    return [k,plan,acts.length?acts.reduce((s,b)=>s+b.act,0):null,fmtS,true];
+  }).filter(Boolean);
+  catRows.push(['TOTAL (plan incl. contingency)',c.total,r.hasSpend?r.spend:null,fmtS,true]);
+  document.getElementById('budTrack').innerHTML=view==='plan'?PLAN_HINT:
+    view==='compare'?pairBars(catRows):
+    trackBar('Actual spend vs planned budget (incl. contingency)',c.total,r.hasSpend?r.spend:null,fmtS,true);
+  document.getElementById('varChart').innerHTML=varianceHTML(c,r);
+
+  const showAct=view!=='plan';
+  document.getElementById('budgetTable').innerHTML='<table><tr><th style="width:158px">Category</th><th>Item</th><th class="num">Unit cost</th><th class="num">Qty</th><th class="num">Plan</th>'+
+    (showAct?'<th class="num">Actual (fill)</th><th>Date spent</th><th class="num">Variance</th>':'')+'<th></th></tr>'+
+    budget.map((b,i)=>{
+      const plan=b.unit*b.qty;
+      const hasAct=typeof b.act==='number';
+      const v=hasAct?b.act-plan:null;
+      return `<tr>
+      <td><select onchange="updB(${i},'cat',this.value)">${CATS.map(k=>`<option ${k===b.cat?'selected':''}>${k}</option>`).join('')}</select></td>
+      <td><input class="txt" value="${String(b.item).replace(/"/g,'&quot;')}" onchange="updB(${i},'item',this.value)"></td>
+      <td class="num"><input style="width:118px" value="${fmtIn(b.unit)}" onchange="updB(${i},'unit',this.value)"></td>
+      <td class="num"><input class="qty" value="${b.qty}" onchange="updB(${i},'qty',this.value)"></td>
+      <td class="num" style="font-weight:700">${fmt(plan)}</td>
+      ${showAct?`<td class="num"><input style="width:118px" value="${hasAct?fmtIn(b.act):''}" placeholder="—" onchange="updB(${i},'act',this.value)"></td>
+      <td><input type="date" value="${b.actDate||''}" style="width:138px;text-align:left" onchange="updB(${i},'actDate',this.value)"></td>
+      <td class="num">${v===null?'<span class="muted">—</span>':`<span class="${v<=0?'var-pos':'var-neg'}">${v>0?'+':''}${fmtS(v)}</span>`}</td>`:''}
+      <td><button class="del" onclick="delRow(${i})">✕</button></td></tr>`;}).join('')+
+    `<tr class="sec-row"><td colspan="4">Subtotal</td><td class="num">${fmt(c.sub)}</td>${showAct?`<td class="num">${r.hasSpend?fmt(r.spend):'—'}</td><td colspan="2"></td>`:''}<td></td></tr>
+     <tr><td colspan="3">Contingency (plan only)</td><td class="num">${dd('updC(this.value)',contingency,0,30,5,'%')}</td><td class="num">${fmt(c.cont)}</td>${showAct?'<td colspan="3"></td>':''}<td></td></tr>
+     <tr class="total-row"><td colspan="4">TOTAL</td><td class="num">${fmt(c.total)}</td>${showAct?`<td class="num">${r.hasSpend?fmt(r.spend):'—'}</td><td></td>
+       <td class="num">${spendVar===null?'':`<span class="${spendVar<=0?'var-pos':'var-neg'}">${spendVar>0?'+':''}${fmtS(spendVar)}</span>`}</td>`:''}<td></td></tr></table>`;
+
+  // DEAL (period-filtered: rP)
+  document.getElementById('dealKpi').innerHTML=`
+    <div class="card orange"><div class="lbl">Clients acquired</div>${pr('plan',c.closings,'real',rP.rAcc||'—','')}</div>
+    <div class="card yellow"><div class="lbl">Success ratio</div>${pr('plan',A.leads?Math.round(c.closings/A.leads*100)+'%':'—','real',rP.success!==null?Math.round(rP.success*100)+'% ('+rP.rAcc+'/'+rP.leadsP+')':'—',rP.success!==null&&rP.success*100>=A.close?'green':'')}</div>
+    <div class="card"><div class="lbl">Cost / lead</div>${pr('plan',A.leads?fmtS(c.total/A.leads):'—','real',rP.cpl!==null?fmtS(rP.cpl):'—','')}</div>
+    <div class="card"><div class="lbl">Cost / account</div>${pr('plan',c.closings?fmtS(c.cpa):'—','real',rP.cpa!==null?fmtS(rP.cpa):(rP.hasSpend?'awaiting closings':'—'),rP.cpa!==null&&rP.cpa<=c.cpa?'green':'')}</div>
+    <div class="card"><div class="lbl">Avg deal / closing</div>${pr('plan',fmtS(c.avgDeal),'real',rP.rAcc?fmtS(rP.rAvgDeal):'—','')}</div>
+    <div class="card dark"><div class="lbl">ROI ${c.H}-month</div>${pr('plan',pctf(c.roiH),'real',rP.roiH!==null?pctf(rP.roiH):'—',rP.roiH!==null?(rP.roiH>=0?'green':'red'):'')}</div>`;
+  const dealRows=[
+    ['Leads approached vs plan',A.leads,rP.leadsP||null,v=>v],
+    ['Meetings held vs plan',A.meetings,actual.meetings===''?null:actual.meetings,v=>v],
+    ['Accounts closed vs target',c.closings,rP.rAcc||null,v=>v],
+    ['First-order revenue vs plan',c.rev1,rP.rAcc?rP.rRev1:null,fmtS]];
+  const meetInput=`<table style="margin-top:6px"><tr><td>Meetings held — actual <span class="muted">· only manual realization input left</span></td>
+     <td class="num"><input value="${actual.meetings===''?'':actual.meetings}" placeholder="—" onchange="updAct('meetings',this.value)"></td></tr></table>`;
+  document.getElementById('dealTrack').innerHTML=view==='plan'?PLAN_HINT:
+    view==='compare'?pairBars(dealRows):
+    dealRows.map(a=>trackBar(...a)).join('')+meetInput;
+  document.getElementById('revComp').innerHTML=revCompHTML(c,r);
+
+  // monthly report table
+  const mrows=monthlyRows();
+  document.getElementById('monthlyTable').innerHTML=mrows.length?
+    '<table><tr><th>Month</th><th class="num">Leads</th><th class="num">Acquired</th><th class="num">Success ratio</th><th class="num">Spend</th><th class="num">Cost / lead</th><th class="num">Cost / acq</th><th class="num">Revenue (incl. upsell)</th></tr>'+
+    mrows.map(([m,v])=>`<tr>
+      <td><b>${mName(m)}</b></td>
+      <td class="num">${v.leads}</td>
+      <td class="num" style="font-weight:700">${v.closed}</td>
+      <td class="num ${v.leads&&v.closed/v.leads*100>=A.close?'green':'amber'}">${v.leads?Math.round(v.closed/v.leads*100)+'%':'—'}</td>
+      <td class="num">${fmtS(v.spend)}</td>
+      <td class="num">${v.leads&&v.spend?fmtS(v.spend/v.leads):'—'}</td>
+      <td class="num">${v.closed&&v.spend?fmtS(v.spend/v.closed):'—'}</td>
+      <td class="num">${fmtS(v.rev+v.ups)}</td></tr>`).join('')+
+    (()=>{const t=mrows.reduce((a,[m,v])=>({leads:a.leads+v.leads,closed:a.closed+v.closed,spend:a.spend+v.spend,rev:a.rev+v.rev,ups:a.ups+v.ups}),{leads:0,closed:0,spend:0,rev:0,ups:0});
+      return `<tr class="total-row"><td>TOTAL</td><td class="num">${t.leads}</td><td class="num">${t.closed}</td>
+        <td class="num">${t.leads?Math.round(t.closed/t.leads*100)+'%':'—'}</td><td class="num">${fmtS(t.spend)}</td>
+        <td class="num">${t.leads&&t.spend?fmtS(t.spend/t.leads):'—'}</td><td class="num">${t.closed&&t.spend?fmtS(t.spend/t.closed):'—'}</td>
+        <td class="num">${fmtS(t.rev+t.ups)}</td></tr>`;})()+'</table>':
+    '<p class="note" style="margin:0">Date your entries (leads approached, closings, spend) and the monthly compilation appears here — cost per lead, clients acquired, and success ratio per month.</p>';
+  renderPeriodSel();
+
+  document.getElementById('assumpTable').innerHTML='<table>'+
+    `<tr><td>Leads contacted <span class="muted">· approached before the trip</span></td><td class="num">${dd("updA('leads',this.value)",A.leads,5,200,5)}</td></tr>`+
+    `<tr><td>Meetings held <span class="muted">· agreed to be visited</span></td><td class="num">${dd("updA('meetings',this.value)",A.meetings,0,100,2)}</td></tr>`+
+    `<tr><td>Close rate on leads</td><td class="num">${dd("updA('close',this.value)",A.close,0,100,5,'%')}</td></tr>`+
+    `<tr><td>Repeat orders / client (boxes of ${CANS_PER_BOX})</td><td class="num">${dd("updA('boxes',this.value)",A.boxes,0,40,1)}</td></tr>`+
+    `<tr><td>ROI / projection period <span class="muted">· type any number of months — every summary chart recalculates on it</span></td><td class="num"><input class="qty" style="width:64px" value="${A.horizon}" onchange="updA('horizon',this.value)"> <span class="muted">months</span></td></tr>`+
+    `<tr><td>COGS per can <span class="muted">· production cost</span></td><td class="num"><input style="width:118px" value="${fmtIn(A.cogs)}" onchange="updA('cogs',this.value)"></td></tr>`+
+    `<tr class="sec-row"><td>Gross margin <span class="muted">· (avg price ${fmt(c.avgCan)} − COGS) ÷ avg price</span></td><td class="num">${Math.round(c.marginPct*100)}%</td></tr>`+
+    '</table>';
+
+  const clRow=(cl,i,list)=>{
+    const boxes=cl.cans/CANS_PER_BOX;
+    return `<tr>
+      <td><input class="txt" value="${String(cl.name).replace(/"/g,'&quot;')}" onchange="updCl('${list}',${i},'name',this.value)"></td>
+      <td><select onchange="updCl('${list}',${i},'seg',this.value)">${SEGS.map(s=>`<option ${s===cl.seg?'selected':''}>${s}</option>`).join('')}</select></td>
+      <td><input type="date" value="${cl.date||''}" style="width:138px;text-align:left" onchange="updCl('${list}',${i},'date',this.value)"></td>
+      ${list==='p'?`<td class="num"><input class="pct" value="${cl.pct||''}" placeholder="—" onchange="updCl('p',${i},'pct',this.value)"></td>`:''}
+      <td class="num"><input style="width:112px" value="${fmtIn(cl.can)}" onchange="updCl('${list}',${i},'can',this.value)"></td>
+      <td class="num"><input class="qty" value="${cl.cans}" onchange="updCl('${list}',${i},'cans',this.value)"></td>
+      <td class="num" style="font-weight:700">${fmt(dealOf(cl))}</td>
+      <td class="num">${boxes.toFixed(1)}</td>
+      <td style="min-width:170px"><input class="txt" value="${String(cl.note||'').replace(/"/g,'&quot;')}" placeholder="Comment — what happened during the approach…" onchange="updCl('${list}',${i},'note',this.value)"></td>
+      <td><button class="del" onclick="${list==='p'?'delClient':'delReal'}(${i})">✕</button></td></tr>`;
+  };
+  document.getElementById('clientTable').innerHTML=
+    `<table><tr><th>Client name</th><th style="width:160px">Segmentation</th><th>Approached</th><th class="num">%</th><th class="num">Price/can</th><th class="num">Total cans</th><th class="num">Deal value</th><th class="num">Boxes/trx</th><th>Comment</th><th></th></tr>`+
+    clients.map((cl,i)=>clRow(cl,i,'p')).join('')+
+    `<tr class="sec-row"><td colspan="4">Averages <span class="muted">· deal = AVERAGE(price/can × cans)</span></td>
+    <td class="num">${fmt(c.avgCan)}<div class="muted" style="font-size:.62rem">avg price/can</div></td>
+    <td class="num">${c.avgCans.toFixed(0)}<div class="muted" style="font-size:.62rem">avg cans</div></td>
+    <td class="num">${fmtS(c.avgDeal)}<div class="muted" style="font-size:.62rem">avg deal/closing</div></td>
+    <td class="num">${(c.avgCans/CANS_PER_BOX).toFixed(1)}<div class="muted" style="font-size:.62rem">avg boxes/trx</div></td><td colspan="2"></td></tr></table>`;
+
+  document.getElementById('realTable').innerHTML=realized.length?
+    `<table><tr><th>Client name</th><th style="width:160px">Segmentation</th><th>Closed</th><th class="num">Price/can</th><th class="num">Total cans</th><th class="num">Deal value</th><th class="num">Boxes/trx</th><th>Comment</th><th></th></tr>`+
+    realized.map((cl,i)=>clRow(cl,i,'r')).join('')+
+    `<tr class="sec-row"><td colspan="3">TOTAL REALIZED — ${r.rAcc} accounts</td>
+      <td class="num">${fmt(r.rAvgCan)}<div class="muted" style="font-size:.62rem">avg price/can</div></td><td></td>
+      <td class="num">${fmtS(r.rRev1)}</td><td colspan="3"></td></tr></table>`:
+    '<div class="note" style="margin:0">No closings logged yet — every row your team adds here automatically becomes realized accounts, revenue, cost/account, ROI, and payback.</div>';
+
+  document.getElementById('upsTable').innerHTML=upsell.length?
+    `<table><tr><th>Client</th><th>Status</th><th>Date</th>
+      <th class="num">Ex. price/can</th><th class="num">Ex. cans</th><th class="num">Ex. deal</th>
+      <th class="num">New price/can</th><th class="num">New cans</th><th class="num">New deal</th>
+      <th class="num">Deal Δ</th><th class="num">Cans Δ</th><th class="num">Price Δ</th><th class="num">Margin ex→new</th><th>Comment</th><th></th></tr>`+
+    upsell.map((u,i)=>{
+      const ex=upsEx(u),nw=upsNw(u);
+      const dealD=ex>0?(nw-ex)/ex:0, cansD=u.exCans>0?(u.nwCans-u.exCans)/u.exCans:0;
+      const mEx=u.exCan>0?(u.exCan-c.cogs)/u.exCan:0, mNw=u.nwCan>0?(u.nwCan-c.cogs)/u.nwCan:0;
+      const stCol=u.status==='Closed'?'var(--green)':u.status==='Lost'?'var(--muted)':'var(--orange)';
+      return `<tr style="${u.status==='Lost'?'opacity:.45':''}">
+      <td><input class="txt" value="${String(u.name).replace(/"/g,'&quot;')}" onchange="updUps(${i},'name',this.value)"></td>
+      <td><select style="color:${stCol};max-width:110px" onchange="updUps(${i},'status',this.value)">${UPS_STATUS.map(s=>`<option ${s===u.status?'selected':''}>${s}</option>`).join('')}</select></td>
+      <td><input type="date" value="${u.date||''}" style="width:138px;text-align:left" onchange="updUps(${i},'date',this.value)"></td>
+      <td class="num"><input class="qty" style="width:104px" value="${fmtIn(u.exCan)}" onchange="updUps(${i},'exCan',this.value)"></td>
+      <td class="num"><input class="qty" value="${u.exCans}" onchange="updUps(${i},'exCans',this.value)"></td>
+      <td class="num">${fmtS(ex)}</td>
+      <td class="num"><input class="qty" style="width:104px" value="${fmtIn(u.nwCan)}" onchange="updUps(${i},'nwCan',this.value)"></td>
+      <td class="num"><input class="qty" value="${u.nwCans}" onchange="updUps(${i},'nwCans',this.value)"></td>
+      <td class="num" style="font-weight:700">${fmtS(nw)}</td>
+      <td class="num ${dealD>=0?'green':'red'}">${pctf(dealD)}</td>
+      <td class="num ${cansD>=0?'green':'red'}">${pctf(cansD)}</td>
+      <td class="num ${u.nwCan-u.exCan>=0?'green':'red'}">${u.nwCan-u.exCan>=0?'+':''}${fmt(u.nwCan-u.exCan)}</td>
+      <td class="num">${Math.round(mEx*100)}%→<b class="${mNw>=mEx?'green':'red'}">${Math.round(mNw*100)}%</b></td>
+      <td style="min-width:150px"><input class="txt" value="${String(u.note||'').replace(/"/g,'&quot;')}" placeholder="Comment…" onchange="updUps(${i},'note',this.value)"></td>
+      <td><button class="del" onclick="delUps(${i})">✕</button></td></tr>`;}).join('')+
+    `<tr class="sec-row"><td colspan="9">Upsell increase <span class="muted">· only (new − existing) counts</span></td>
+      <td class="num" colspan="2">proposed+closed: ${fmtS(c.upsIncRev)}</td>
+      <td class="num" colspan="2">closed only: <b class="green">${fmtS(r.uIncRev)}</b></td><td colspan="2"></td></tr></table>`:
+    '<div class="note" style="margin:0">Add existing clients you\'ll reapproach. Propose a bigger order (more cans or better price) — the table shows increase %, cans %, price change, and margin shift. Mark Closed when they agree.</div>';
+
+  renderSync();
+  renderTrips();
+  saveStore();
+}
+render();
+if(store.sync&&store.sync.gistId)syncPull(true);
+</script>
+</body>
+</html>
