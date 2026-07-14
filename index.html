@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BORA — Sales Dashboard for Client Acquisition</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --bg1:#E9E5DD; --bg2:#DCD9D2; --card:#FFFFFF; --card2:#F1EFE9; --line:#E4E1DA;
@@ -175,7 +176,7 @@
       <div class="panel"><h2>Payback timeline</h2><div id="pay-live"></div><p class="note" id="payNote-live"></p></div>
     </div>
     <div class="panel">
-      <h2>👥 Team sync <small>— one shared dataset for the whole sales team</small></h2>
+      <h2>👥 Team workspace <small>— shared database · member logins · Supabase</small></h2>
       <div id="syncUI"></div>
     </div>
   </div>
@@ -313,23 +314,25 @@ function bindTrip(){
 bindTrip();
 function saveStore(){
   store.trips[store.cur].contingency=contingency;
-  const sig=JSON.stringify(store.trips);
-  if(sig!==lastSig){lastSig=sig;store.updatedAt=Date.now();schedulePush();}
   try{localStorage.setItem(STORE_KEY,JSON.stringify(store));}catch(e){}
 }
 function switchTrip(i){store.cur=parseInt(i)||0;bindTrip();render();}
-function renameTrip(v){if(v&&v.trim()){store.trips[store.cur].name=v.trim();render();}}
-function newTrip(){const t=defaultTrip();t.name='New trip '+(store.trips.length+1);store.trips.push(t);store.cur=store.trips.length-1;bindTrip();render();}
+function renameTrip(v){if(v&&v.trim()){store.trips[store.cur].name=v.trim();markTrip();render();}}
+function newTrip(){const t=defaultTrip();t.name='New trip '+(store.trips.length+1);store.trips.push(t);store.cur=store.trips.length-1;bindTrip();markTripAll(t);render();}
 function dupTrip(){
   const t=JSON.parse(JSON.stringify(store.trips[store.cur]));
   t.name=store.trips[store.cur].name+' (copy)';
-  t.budget.forEach(b=>b.act='');
+  delete t.sbId;
+  t.budget.forEach(b=>{b.act='';b.actDate='';delete b.sbId;});
+  (t.upsell||[]).forEach(u=>{delete u.sbId;});
   t.realized=[];t.actual={meetings:''};t.clients=[];
-  store.trips.push(t);store.cur=store.trips.length-1;bindTrip();render();
+  store.trips.push(t);store.cur=store.trips.length-1;bindTrip();markTripAll(t);render();
 }
 function delTrip(){
   if(store.trips.length<=1){alert('Keep at least one trip — create or duplicate first.');return;}
-  if(!confirm('Delete trip "'+store.trips[store.cur].name+'"? This cannot be undone.'))return;
+  if(!confirm('Delete trip "'+store.trips[store.cur].name+'"? This deletes it for the WHOLE team and cannot be undone.'))return;
+  const t=store.trips[store.cur];
+  if(t.sbId){pendingDeletes.trips.add(t.sbId);markFlush();}
   store.trips.splice(store.cur,1);store.cur=0;bindTrip();render();
 }
 function exportTrip(){
@@ -473,34 +476,37 @@ function updB(i,f,v){
   else if(f==='actDate'){budget[i].actDate=v;}
   else if(f==='unit'){const x=moneyOf(v);if(x===null||x<0)return;budget[i].unit=x;}
   else{const x=numOf(v);if(x===null||x<0)return;budget[i][f]=x;}
+  markRow(budget[i]);
   render();
 }
-function addRow(){budget.push({cat:'Transportation',item:'New item — rename me',unit:0,qty:1,act:''});render();}
-function delRow(i){budget.splice(i,1);render();}
-function updC(v){const x=numOf(v);if(x!==null&&x>=0){contingency=x;render();}}
-function updA(k,v){let x=(k==='cogs'?moneyOf(v):numOf(v));if(k==='horizon'&&x!==null)x=Math.max(1,Math.min(60,Math.round(x)));if(x!==null&&x>=0){A[k]=x;render();}}
+function addRow(){budget.push({cat:'Transportation',item:'New item — rename me',unit:0,qty:1,act:'',actDate:''});markRow(budget[budget.length-1]);render();}
+function delRow(i){delMark(budget[i]);budget.splice(i,1);render();}
+function updC(v){const x=numOf(v);if(x!==null&&x>=0){contingency=x;markTrip();render();}}
+function updA(k,v){let x=(k==='cogs'?moneyOf(v):numOf(v));if(k==='horizon'&&x!==null)x=Math.max(1,Math.min(60,Math.round(x)));if(x!==null&&x>=0){A[k]=x;markTrip();render();}}
 function updCl(list,i,f,v){
   const arr=list==='p'?clients:realized;
   if(f==='name'||f==='seg'||f==='note'||f==='date'){arr[i][f]=v;}
   else if(f==='pct'){arr[i].pct=v;}
   else if(f==='can'){const x=moneyOf(v);if(x===null||x<0)return;arr[i].can=x;}
   else{const x=numOf(v);if(x===null||x<0)return;arr[i][f]=x;}
+  markRow(arr[i]);
   render();
 }
 const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
-function addClient(){clients.push({name:'New target',seg:SEGS[0],pct:'',can:13500,cans:48,note:'',date:todayStr()});render();}
-function delClient(i){clients.splice(i,1);render();}
-function addReal(){realized.push({name:'Closed client',seg:SEGS[0],can:13500,cans:48,note:'',date:todayStr()});render();}
-function delReal(i){realized.splice(i,1);render();}
+function addClient(){clients.push({name:'New target',seg:SEGS[0],pct:'',can:13500,cans:48,note:'',date:todayStr()});markRow(clients[clients.length-1]);render();}
+function delClient(i){delMark(clients[i]);clients.splice(i,1);render();}
+function addReal(){realized.push({name:'Closed client',seg:SEGS[0],can:13500,cans:48,note:'',date:todayStr()});markRow(realized[realized.length-1]);render();}
+function delReal(i){delMark(realized[i]);realized.splice(i,1);render();}
 function updUps(i,f,v){
   if(f==='name'||f==='status'||f==='note'||f==='date'){upsell[i][f]=v;}
   else if(f==='exCan'||f==='nwCan'){const x=moneyOf(v);if(x===null||x<0)return;upsell[i][f]=x;}
   else{const x=numOf(v);if(x===null||x<0)return;upsell[i][f]=x;}
+  markRow(upsell[i]);
   render();
 }
-function addUps(){upsell.push({name:'Existing client',status:'Proposed',exCan:13500,exCans:48,nwCan:13500,nwCans:96,note:'',date:todayStr()});render();}
-function delUps(i){upsell.splice(i,1);render();}
-function updAct(k,v){actual[k]=v===''?'':numOf(v);render();}
+function addUps(){upsell.push({name:'Existing client',status:'Proposed',exCan:13500,exCans:48,nwCan:13500,nwCans:96,note:'',date:todayStr()});markRow(upsell[upsell.length-1]);render();}
+function delUps(i){delMark(upsell[i]);upsell.splice(i,1);render();}
+function updAct(k,v){actual[k]=v===''?'':numOf(v);markTrip();render();}
 
 function dd(onchange,cur,min,max,step,suffix){
   let has=false,o='';
@@ -700,98 +706,141 @@ function pr(lbl1,v1,lbl2,v2,cls2){
 }
 const PLAN_HINT='<p class="note" style="margin:0">📐 Plan view — switch to ✅ Realization or ⚖️ Compare to track actuals here.</p>';
 
-/* ---------- team sync (shared GitHub Gist) ---------- */
-const GIST_FILE='bora-sales-sync.json';
-let syncTimer=null,syncState='',lastSig='';
-function setSync(msg,color){syncState=msg;const el=document.getElementById('syncStatus');if(el){el.textContent=msg;el.style.color=color||'var(--muted)';}}
-function ghHeaders(tok){return{'Authorization':'Bearer '+(tok||(store.sync&&store.sync.token)||''),'Accept':'application/vnd.github+json','Content-Type':'application/json'};}
-function schedulePush(){if(!store.sync||!store.sync.gistId)return;clearTimeout(syncTimer);setSync('Syncing…');syncTimer=setTimeout(syncPush,3000);}
-async function syncPush(){
-  if(!store.sync||!store.sync.gistId)return;
+/* ---------- Supabase team backend (member logins) ---------- */
+let sb=null,sbUser=null,sbPollTimer=null,sbState='';
+let dirtyRows=new Set(),dirtyTrips=new Set();
+const pendingDeletes={trips:new Set(),records:new Set()};
+let flushTimer=null,flushing=false;
+const uuid=()=>((typeof crypto!=='undefined'&&crypto.randomUUID)?crypto.randomUUID():'x'+Date.now()+'-'+Math.random().toString(36).slice(2));
+function sbCfg(){try{return JSON.parse(localStorage.getItem('boraSbCfg'));}catch(e){return null;}}
+function setSb(msg,color){sbState=msg;const el=document.getElementById('sbStatus');if(el){el.textContent=msg;el.style.color=color||'var(--muted)';}}
+function sbActive(){return !!(sb&&sbUser);}
+function markRow(row){if(!sbCfg()||!row)return;row.sbId=row.sbId||uuid();dirtyRows.add(row.sbId);markFlush();}
+function delMark(row){if(!sbCfg()||!row||!row.sbId)return;dirtyRows.delete(row.sbId);pendingDeletes.records.add(row.sbId);markFlush();}
+function markTrip(){if(!sbCfg())return;const t=store.trips[store.cur];t.sbId=t.sbId||uuid();dirtyTrips.add(t.sbId);markFlush();}
+function markTripAll(t){if(!sbCfg()||!t)return;t.sbId=t.sbId||uuid();dirtyTrips.add(t.sbId);
+  ['budget','clients','realized','upsell'].forEach(k=>(t[k]||[]).forEach(r=>{r.sbId=r.sbId||uuid();dirtyRows.add(r.sbId);}));markFlush();}
+function markFlush(){if(!sbActive())return;clearTimeout(flushTimer);setSb('Saving to team…');flushTimer=setTimeout(flushCloud,1200);}
+function hasPending(){return dirtyRows.size||dirtyTrips.size||pendingDeletes.records.size||pendingDeletes.trips.size;}
+async function flushCloud(){
+  if(!sbActive()||flushing)return;
+  flushing=true;
   try{
-    const body=JSON.stringify({trips:store.trips,updatedAt:store.updatedAt||Date.now()});
-    const r=await fetch('https://api.github.com/gists/'+store.sync.gistId,{method:'PATCH',headers:ghHeaders(),
-      body:JSON.stringify({files:{[GIST_FILE]:{content:body}}})});
-    if(!r.ok)throw 0;
-    setSync('✓ Synced '+new Date().toLocaleTimeString(),'var(--green)');
-  }catch(e){setSync('⚠️ Sync failed — check connection or token','var(--red)');}
+    if(pendingDeletes.records.size){const{error}=await sb.from('records').delete().in('id',[...pendingDeletes.records]);if(error)throw error;pendingDeletes.records.clear();}
+    if(pendingDeletes.trips.size){const{error}=await sb.from('trips').delete().in('id',[...pendingDeletes.trips]);if(error)throw error;pendingDeletes.trips.clear();}
+    const tUps=store.trips.filter(t=>t.sbId&&dirtyTrips.has(t.sbId)).map(t=>({id:t.sbId,name:t.name,contingency:t.contingency,a:t.A,actual:t.actual}));
+    if(tUps.length){const{error}=await sb.from('trips').upsert(tUps);if(error)throw error;}
+    dirtyTrips.clear();
+    const rUps=[];
+    store.trips.forEach(t=>{
+      if(!t.sbId)return;
+      [['budget','budget'],['clients','lead'],['realized','realized'],['upsell','upsell']].forEach(([k,kind])=>{
+        (t[k]||[]).forEach((row,i)=>{
+          if(row.sbId&&dirtyRows.has(row.sbId)){
+            const data=Object.assign({},row);delete data.sbId;data.ord=i;
+            rUps.push({id:row.sbId,trip_id:t.sbId,kind,data,updated_by:sbUser?sbUser.email:null});
+          }
+        });
+      });
+    });
+    if(rUps.length){const{error}=await sb.from('records').upsert(rUps);if(error)throw error;}
+    dirtyRows.clear();
+    setSb('✓ Saved to team · '+new Date().toLocaleTimeString(),'var(--green)');
+  }catch(e){setSb('⚠️ Team save failed — will retry on next edit','var(--red)');}
+  flushing=false;
 }
-async function syncPull(silent){
-  if(!store.sync||!store.sync.gistId)return;
+async function cloudLoad(initial){
+  if(!sbActive())return;
+  if(hasPending()||flushing)return;
+  const ae=document.activeElement;
+  if(!initial&&ae&&(ae.tagName==='INPUT'||ae.tagName==='SELECT'||ae.tagName==='TEXTAREA'))return;
   try{
-    setSync('Checking team data…');
-    const r=await fetch('https://api.github.com/gists/'+store.sync.gistId,{headers:ghHeaders()});
-    if(!r.ok)throw 0;
-    const g=await r.json();
-    if(!g.files||!g.files[GIST_FILE])throw 0;
-    const remote=JSON.parse(g.files[GIST_FILE].content);
-    if(remote.trips&&remote.trips.length&&(remote.updatedAt||0)>(store.updatedAt||0)){
-      store.trips=remote.trips;store.updatedAt=remote.updatedAt;
-      if(store.cur>=store.trips.length)store.cur=0;
-      lastSig=JSON.stringify(store.trips);
-      bindTrip();render();
-      setSync('✓ Updated from team '+new Date().toLocaleTimeString(),'var(--green)');
-    }else setSync('✓ Up to date','var(--green)');
-  }catch(e){setSync('⚠️ Could not reach team data','var(--red)');}
-}
-async function connectSync(){
-  const tok=document.getElementById('ghToken').value.trim();
-  if(!tok){alert('Paste the team token first.');return;}
-  setSync('Connecting…');
-  try{
-    const r=await fetch('https://api.github.com/gists?per_page=100',{headers:ghHeaders(tok)});
-    if(!r.ok)throw 0;
-    const gists=await r.json();
-    const found=gists.find(g=>g.files&&g.files[GIST_FILE]);
-    if(found){
-      store.sync={token:tok,gistId:found.id};
-      const dr=await fetch('https://api.github.com/gists/'+found.id,{headers:ghHeaders(tok)});
-      const dg=await dr.json();
-      let remote=null;try{remote=JSON.parse(dg.files[GIST_FILE].content);}catch(e){}
-      const localEmpty=store.trips.length===1&&!store.trips[0].realized.length&&!store.trips[0].budget.some(b=>typeof b.act==='number');
-      if(remote&&remote.trips&&remote.trips.length&&(localEmpty||confirm('Team data found in the cloud.\n\nOK = load TEAM data onto this device (replaces local)\nCancel = keep THIS device\'s data and overwrite the team copy'))){
-        store.trips=remote.trips;store.updatedAt=remote.updatedAt||Date.now();
-        store.cur=0;lastSig=JSON.stringify(store.trips);
-        bindTrip();
-      }
-      saveStore();render();setSync('✓ Team sync enabled','var(--green)');
-    }else{
-      const cr=await fetch('https://api.github.com/gists',{method:'POST',headers:ghHeaders(tok),
-        body:JSON.stringify({description:'BORA Sales Dashboard — team dataset',public:false,
-        files:{[GIST_FILE]:{content:JSON.stringify({trips:store.trips,updatedAt:Date.now()})}}})});
-      if(!cr.ok)throw 0;
-      const g=await cr.json();
-      store.sync={token:tok,gistId:g.id};
-      saveStore();render();setSync('✓ Team sync enabled — now share the token with your team','var(--green)');
+    const t1=await sb.from('trips').select('*').order('created_at');
+    if(t1.error)throw t1.error;
+    const t2=await sb.from('records').select('*');
+    if(t2.error)throw t2.error;
+    const tps=t1.data||[],recs=t2.data||[];
+    if(!tps.length){
+      store.trips.forEach(t=>markTripAll(t));
+      setSb('First connection — uploading this device\'s data to the team…');
+      await flushCloud();
+      return;
     }
-  }catch(e){setSync('⚠️ Invalid token or network error','var(--red)');}
+    const curId=store.trips[store.cur]&&store.trips[store.cur].sbId;
+    const byTrip={};recs.forEach(r=>{(byTrip[r.trip_id]=byTrip[r.trip_id]||[]).push(r);});
+    store.trips=tps.map(tp=>{
+      const rows=byTrip[tp.id]||[];
+      const pick=kind=>rows.filter(r=>r.kind===kind).map(r=>Object.assign({},r.data,{sbId:r.id})).sort((a,b)=>((a.ord??0)-(b.ord??0)));
+      return {sbId:tp.id,name:tp.name||'Trip',contingency:Number(tp.contingency)||10,A:tp.a||{},actual:tp.actual||{},
+        budget:pick('budget'),clients:pick('lead'),realized:pick('realized'),upsell:pick('upsell')};
+    });
+    const idx=store.trips.findIndex(t=>t.sbId===curId);
+    store.cur=idx>=0?idx:0;
+    bindTrip();render();
+    setSb('✓ Team data up to date · '+new Date().toLocaleTimeString(),'var(--green)');
+  }catch(e){setSb('⚠️ Could not load team data','var(--red)');}
 }
-function disconnectSync(){
-  if(!confirm('Disconnect this device from team sync? The team copy stays in the cloud.'))return;
-  delete store.sync;saveStore();render();
+async function sbInit(){
+  const cfg=sbCfg();
+  renderSb();
+  if(!cfg||typeof supabase==='undefined')return;
+  try{sb=supabase.createClient(cfg.url,cfg.key);}catch(e){setSb('⚠️ Invalid Supabase settings','var(--red)');return;}
+  try{
+    const{data}=await sb.auth.getSession();
+    sbUser=(data&&data.session)?data.session.user:null;
+    sb.auth.onAuthStateChange((ev,sess)=>{sbUser=sess?sess.user:null;renderSb();if(sbUser)cloudLoad(true);});
+  }catch(e){}
+  renderSb();
+  if(sbUser)await cloudLoad(true);
+  clearInterval(sbPollTimer);
+  sbPollTimer=setInterval(()=>cloudLoad(false),30000);
 }
-function renderSync(){
+async function sbConnect(){
+  const url=document.getElementById('sbUrl').value.trim();
+  const key=document.getElementById('sbKey').value.trim();
+  if(!url.startsWith('https://')||key.length<20){alert('Paste the Project URL and the anon public key from Supabase → Project Settings → API.');return;}
+  localStorage.setItem('boraSbCfg',JSON.stringify({url,key}));
+  await sbInit();
+}
+async function sbLogin(){
+  const email=document.getElementById('sbEmail').value.trim();
+  if(!email.includes('@')){alert('Enter your work email.');return;}
+  setSb('Sending sign-in link…');
+  try{
+    const{error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname}});
+    if(error)throw error;
+    setSb('✉️ Check your email and click the sign-in link','var(--green)');
+  }catch(e){setSb('⚠️ '+(e.message||'Could not send link'),'var(--red)');}
+}
+async function sbLogout(){try{await sb.auth.signOut();}catch(e){}sbUser=null;renderSb();}
+function sbReset(){if(confirm('Remove the Supabase settings from this device?')){localStorage.removeItem('boraSbCfg');clearInterval(sbPollTimer);sb=null;sbUser=null;renderSb();}}
+function renderSb(){
   const el=document.getElementById('syncUI');if(!el)return;
-  if(store.sync&&store.sync.gistId){
-    el.innerHTML=`<p class="muted" style="margin-bottom:8px">Connected — the whole team works on ONE dataset. Edits push ~3s after you stop typing; the app pulls the latest every time it opens. Avoid two people editing at the exact same moment (last save wins) — use ⟳ Pull before a data-entry session.</p>
-      <p id="syncStatus" class="muted" style="margin-bottom:10px">${syncState}</p>
+  const cfg=sbCfg();
+  if(!cfg){
+    el.innerHTML=`<p class="muted" style="margin-bottom:10px">Connect this app to your team's Supabase workspace — see the SUPABASE-TEAM-SETUP guide (one-time, ~10 minutes).</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn sec" onclick="syncPull()">⟳ Pull latest</button>
-        <button class="btn sec" onclick="syncPush()">↑ Push now</button>
-        <button class="btn sec" style="border-color:var(--red);color:var(--red)" onclick="disconnectSync()">Disconnect</button>
-      </div>`;
-  }else{
-    el.innerHTML=`<p class="muted" style="margin-bottom:10px">Connect every team member to one shared dataset — free, via a secret GitHub Gist.</p>
-      <ol class="muted" style="font-size:.8rem;line-height:1.7;margin:0 0 12px 18px">
-        <li><b>One person (you), once:</b> github.com/settings/tokens → Generate new token (classic) → tick ONLY the <b>gist</b> scope → copy it</li>
-        <li>Paste it below → <b>Connect</b> — this creates the team dataset in the cloud</li>
-        <li>Send the token to each sales member — they paste the <b>same token</b> here on their device, done</li>
-      </ol>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <div style="flex:2;min-width:220px"><input class="txt" id="ghToken" type="password" placeholder="ghp_… team token" autocomplete="off" style="width:100%"></div>
-        <button class="btn" onclick="connectSync()">Connect team sync</button>
+        <div style="flex:2;min-width:220px"><input class="txt" id="sbUrl" placeholder="https://xxxx.supabase.co  (Project URL)" style="width:100%"></div>
+        <div style="flex:2;min-width:220px"><input class="txt" id="sbKey" type="password" placeholder="anon public key" style="width:100%"></div>
+        <button class="btn" onclick="sbConnect()">Connect</button>
       </div>
-      <p class="muted" style="margin-top:8px;font-size:.72rem">The token can only touch gists — nothing else on the GitHub account. Data sits in a secret gist reachable only via the token.</p>`;
+      <p class="muted" style="margin-top:8px;font-size:.72rem">Both values are in Supabase → Project Settings → API. Every team member pastes the same two values once, then signs in with their own email.</p>`;
+  }else if(!sbUser){
+    el.innerHTML=`<p class="muted" style="margin-bottom:10px">Workspace connected. Sign in with your email — you'll receive a magic link, no password needed.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="flex:2;min-width:220px"><input class="txt" id="sbEmail" type="email" placeholder="you@company.com" style="width:100%"></div>
+        <button class="btn" onclick="sbLogin()">Send sign-in link</button>
+        <button class="btn sec" onclick="sbReset()">Change settings</button>
+      </div>
+      <p id="sbStatus" class="muted" style="margin-top:8px">${sbState}</p>`;
+  }else{
+    el.innerHTML=`<p class="muted" style="margin-bottom:8px">Signed in as <b>${esc(sbUser.email)}</b> — every edit saves to the shared team database and records who made it. Data refreshes automatically every 30 seconds.</p>
+      <p id="sbStatus" class="muted" style="margin-bottom:10px">${sbState}</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn sec" onclick="cloudLoad(true)">⟳ Refresh team data</button>
+        <button class="btn sec" onclick="sbLogout()">Sign out</button>
+        <button class="btn sec" style="border-color:var(--red);color:var(--red)" onclick="sbReset()">Disconnect device</button>
+      </div>`;
   }
 }
 
@@ -1068,12 +1117,12 @@ function render(){
       <td class="num" colspan="2">closed only: <b class="green">${fmtS(r.uIncRev)}</b></td><td colspan="2"></td></tr></table>`:
     '<div class="note" style="margin:0">Add existing clients you\'ll reapproach. Propose a bigger order (more cans or better price) — the table shows increase %, cans %, price change, and margin shift. Mark Closed when they agree.</div>';
 
-  renderSync();
+  renderSb();
   renderTrips();
   saveStore();
 }
 render();
-if(store.sync&&store.sync.gistId)syncPull(true);
+sbInit();
 </script>
 </body>
 </html>
