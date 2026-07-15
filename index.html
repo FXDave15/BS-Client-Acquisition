@@ -555,22 +555,34 @@ function addPromo(){
   markRow(promos[promos.length-1]);render();
 }
 function delPromo(i){delMark(promos[i]);promos.splice(i,1);render();}
-// Itemized cost: a promo's effective cost is the sum of its line items when it
-// has any, otherwise the single `cost` figure. Line items live in p.items and
-// persist automatically (whole row is stored as JSON).
-function promoCost(p){return (p.items&&p.items.length)?p.items.reduce((s,it)=>s+(Number(it.amt)||0),0):(Number(p.cost)||0);}
-function itemizePromo(i){const p=promos[i];p.items=(Number(p.cost)>0)?[{label:'',amt:p.cost}]:[{label:'',amt:0}];markRow(p);render();}
+// A promo's cost can be a single figure OR itemized line items {label, qty, cost}
+// whose total is qty × cost. Items persist inside the record JSON (no schema change).
+function itemQty(it){return it.qty!==undefined?(Number(it.qty)||0):1;}
+function itemUnit(it){return it.cost!==undefined?(Number(it.cost)||0):(Number(it.amt)||0);}
+function itemAmt(it){return itemQty(it)*itemUnit(it);}
+function promoCost(p){return (p.items&&p.items.length)?p.items.reduce((s,it)=>s+itemAmt(it),0):(Number(p.cost)||0);}
+function itemizePromo(i){const p=promos[i];p.items=[{label:'',qty:1,cost:(Number(p.cost)||0)}];markRow(p);render();}
 function unitemizePromo(i){const p=promos[i];p.cost=promoCost(p);p.items=[];markRow(p);render();}
-function addCostItem(i){promos[i].items=promos[i].items||[];promos[i].items.push({label:'',amt:0});markRow(promos[i]);render();}
-function delCostItem(i,j){const p=promos[i];if(!p.items)return;p.items.splice(j,1);if(!p.items.length)p.items.push({label:'',amt:0});markRow(p);render();}
-function updCostItem(i,j,f,v){const p=promos[i];if(!p.items||!p.items[j])return;if(f==='amt'){const x=moneyOf(v);if(x===null||x<0)return;p.items[j].amt=x;}else p.items[j].label=v;markRow(p);render();}
+function addCostItem(i){promos[i].items=promos[i].items||[];promos[i].items.push({label:'',qty:1,cost:0});markRow(promos[i]);render();}
+function delCostItem(i,j){const p=promos[i];if(!p.items)return;p.items.splice(j,1);if(!p.items.length)p.items.push({label:'',qty:1,cost:0});markRow(p);render();}
+function updCostItem(i,j,f,v){const p=promos[i];if(!p.items||!p.items[j])return;const it=p.items[j];
+  if(it.qty===undefined){it.qty=1;it.cost=Number(it.amt)||0;delete it.amt;}
+  if(f==='qty'){const x=numOf(v);if(x===null||x<0)return;it.qty=x;}
+  else if(f==='cost'){const x=moneyOf(v);if(x===null||x<0)return;it.cost=x;}
+  else it.label=v;
+  markRow(p);render();}
 function costCell(p,i){
   if(p.items&&p.items.length){
     const rows=p.items.map((it,j)=>`<div style="display:flex;gap:3px;margin-bottom:3px;align-items:center;justify-content:flex-end">
-      <input value="${String(it.label||'').replace(/"/g,'&quot;')}" placeholder="item" style="width:80px;font-size:.66rem;text-align:left" onchange="updCostItem(${i},${j},'label',this.value)">
-      <input value="${fmtIn(it.amt||0)}" style="width:84px;font-size:.66rem" onchange="updCostItem(${i},${j},'amt',this.value)">
+      <input value="${String(it.label||'').replace(/"/g,'&quot;')}" placeholder="item" style="width:72px;font-size:.66rem;text-align:left" onchange="updCostItem(${i},${j},'label',this.value)">
+      <input value="${itemQty(it)}" title="qty" style="width:34px;font-size:.66rem" onchange="updCostItem(${i},${j},'qty',this.value)">
+      <span style="font-size:.6rem;color:#999">×</span>
+      <input value="${fmtIn(itemUnit(it))}" title="unit cost" style="width:74px;font-size:.66rem" onchange="updCostItem(${i},${j},'cost',this.value)">
       <button class="del" style="padding:0 4px" onclick="delCostItem(${i},${j})">✕</button></div>`).join('');
-    return `<td class="num"><div style="min-width:190px">${rows}
+    return `<td class="num"><div style="min-width:210px">
+      <div style="display:flex;gap:3px;justify-content:flex-end;font-size:.56rem;color:#999;margin-bottom:2px">
+        <span style="width:72px;text-align:left">item</span><span style="width:34px;text-align:center">qty</span><span style="width:10px"></span><span style="width:74px;text-align:center">unit cost</span><span style="width:16px"></span></div>
+      ${rows}
       <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:2px">
         <a onclick="addCostItem(${i})" style="cursor:pointer;color:var(--orange);font-size:.66rem">+ line</a>
         <a onclick="unitemizePromo(${i})" style="cursor:pointer;color:var(--muted);font-size:.66rem">single</a>
@@ -1129,7 +1141,7 @@ function downloadPromoReport(){
     }).join('')+'</table>'):'<p class="muted">No promos logged'+(period==='all'?'':' in this period')+'.</p>';
   const detail=rows.length?('<table><tr><th>Client</th><th>Type</th><th>Status</th><th>Start</th><th class=n>Cost</th><th class=n>Base bx/mo</th><th class=n>Now bx/mo</th><th class=n>Growth</th><th class=n>Uplift GP/mo</th><th class=n>Payback</th></tr>'+
     rows.map(x=>{const p=x.p;
-      const items=(p.items&&p.items.length)?'<br><span class="muted">'+p.items.map(it=>esc(it.label||'item')+' '+fmtS(it.amt||0)).join(' · ')+'</span>':'';
+      const items=(p.items&&p.items.length)?'<br><span class="muted">'+p.items.map(it=>esc(it.label||'item')+' '+itemQty(it)+'×'+fmtS(itemUnit(it))).join(' · ')+'</span>':'';
       return `<tr><td>${esc(p.name||'Client')}<br><span class="muted">${esc(p.seg||'')}</span></td>
         <td>${esc(PSHORT[p.ptype]||p.ptype||'')}</td><td>${esc(p.status||'')}</td><td>${esc(p.date||'—')}</td>
         <td class=n>${fmtS(x.cost)}${items}</td>
@@ -1220,7 +1232,6 @@ function render(){
   document.getElementById('liveTrack').innerHTML=view==='plan'?PLAN_HINT:
     view==='compare'?pairBars(liveRows):
     liveRows.map(a=>trackBar(...a)).join('');
-  // Acquire vs grow split
   (function(){
     const acq=r.hasSpend?r.spend:c.total;
     const promoTot=promoCalc(c).totalCost;
