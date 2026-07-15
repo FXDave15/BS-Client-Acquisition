@@ -1185,19 +1185,9 @@ function downloadPromoReport(){
   <p class="muted">Growth = boxes/month during promo vs baseline · Uplift GP/mo = extra boxes × cans/box × (price − COGS) · Payback = promo cost ÷ monthly uplift GP · Generated from BORA Sales Dashboard</p>
   <scr`+`ipt>window.onload=function(){setTimeout(function(){window.print();},400);};</scr`+`ipt>
   </body></html>`;
-  try{
-    const blob=new Blob([html],{type:'text/html'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;
-    a.download='BORA-Trade-Promo-Report-'+String(periodLabel()||'all').replace(/[^\w\-]+/g,'-')+'.html';
-    document.body.appendChild(a);a.click();
-    setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},1500);
-  }catch(e){
-    const w=window.open('','_blank');
-    if(!w){alert('Could not download — please allow pop-ups and try again.');return;}
-    w.document.write(html);w.document.close();
-  }
+  const w=window.open('','_blank');
+  if(!w){alert('Please allow pop-ups to download the report.');return;}
+  w.document.write(html);w.document.close();
 }
 
 /* ---------- render ---------- */
