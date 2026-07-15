@@ -127,6 +127,7 @@
   <button class="active" id="nav-live" onclick="go('live')" title="Live Dashboard">📊</button>
   <button id="nav-budget" onclick="go('budget')" title="Budgeting & Realization">💰</button>
   <button id="nav-deal" onclick="go('deal')" title="Deal Segmentation & ROI">🎯</button>
+  <button id="nav-promo" onclick="go('promo')" title="Trade Promo">🎁</button>
   <div class="avatar" title="Dave">D</div>
 </nav>
 <main class="main">
@@ -161,6 +162,7 @@
     <p class="sub">One-glance summary. Realization fills automatically from the budget Actual column, the Realized client list, and Closed upsells.</p>
     <div class="cards" id="liveKpi"></div>
     <div class="panel"><h2>Realization tracker</h2><div id="liveTrack"></div></div>
+    <div class="panel"><h2>💸 Acquire vs grow <small>— how spend splits between winning new clients and growing existing ones</small></h2><div id="splitCard"></div></div>
     <div class="grid2">
       <div class="panel">
         <h2>Budget by category</h2>
@@ -185,6 +187,7 @@
   <div class="page" id="page-budget">
     <h1>💰 Budgeting & Realization</h1>
     <p class="sub">Plan the spend, log the real spend per line. Compare view shows charts only.</p>
+    <p class="note" style="margin:-4px 0 14px">💡 This is your <b>acquisition</b> spend — the cost to win <b>new</b> clients. Growing volume at existing clients lives in 🎁 Trade Promo.</p>
     <div class="cards" id="budKpi"></div>
     <div class="panel"><h2>Projection vs realization</h2><div id="budTrack"></div></div>
     <div class="panel cmp-only"><h2>Variance by category <small>— where realization beat or blew the plan</small></h2><div id="varChart"></div></div>
@@ -233,6 +236,27 @@
     </div>
   </div>
 
+  <!-- PAGE 4: TRADE PROMO -->
+  <div class="page" id="page-promo">
+    <h1>🎁 Trade Promo</h1>
+    <p class="sub">The cost to <b>keep existing clients and grow their volume</b> — retention spend, not acquisition. Measured in boxes/month vs baseline.</p>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <button class="btn" onclick="downloadPromoReport()">⬇ Download Promo Report</button>
+      <span class="muted">Uses the period selected on the Deal page. Great for reporting to management.</span>
+    </div>
+    <div class="cards" id="promoKpi"></div>
+    <div class="panel"><h2>Promotions by client type <small>— count of promos placed</small></h2><div id="promoMatrix"></div></div>
+    <div class="grid2">
+      <div class="panel"><h2>Promo cost <small>— where the money goes</small></h2><div id="promoCost"></div></div>
+      <div class="panel"><h2>Sales effect by promo type <small>— avg growth · uplift GP/mo vs cost</small></h2><div id="promoGrowth"></div></div>
+    </div>
+    <div class="panel edit-only">
+      <h2>Promo log <small>— one row per promo placed at a client · baseline vs during in boxes/month</small></h2>
+      <div id="promoTable"></div>
+      <button class="btn" style="margin-top:12px" onclick="addPromo()">+ Log promo</button>
+    </div>
+  </div>
+
 </main>
 
 <script>
@@ -249,6 +273,8 @@ const CAT_COLORS={'Transportation':'#141414','Hotel':'#F0793A','Entertainment':'
 const SEGS=['Café / coffee shop','Minimarket / retail','Distributor','Restaurant / hotel','Other'];
 const CANS_PER_BOX=24;
 const UPS_STATUS=['Proposed','Closed','Lost'];
+const PTYPES=['Flyer Placement (POSM)','Bundling Subsidy','Quantity Discount','Content Production','Event Activation'];
+const PSTATUS=['Planned','Running','Ended'];
 
 /* ---------- multi-trip store ---------- */
 function defaultTrip(){return {
@@ -276,6 +302,7 @@ function defaultTrip(){return {
  ],
  realized:[],
  upsell:[],
+ promos:[],
  actual:{meetings:''},
 };}
 const STORE_KEY='tripROI_v2';
@@ -298,7 +325,7 @@ if(!store){
 }
 if(!store||!Array.isArray(store.trips)||!store.trips.length)store={cur:0,trips:[defaultTrip()]};
 if(store.cur>=store.trips.length)store.cur=0;
-let budget,contingency,A,clients,realized,upsell,actual;
+let budget,contingency,A,clients,realized,upsell,promos,actual;
 let view='compare';
 function bindTrip(){
   const t=store.trips[store.cur],d=defaultTrip();
@@ -307,9 +334,10 @@ function bindTrip(){
   t.clients=t.clients||[];t.clients.forEach(cl=>{if(cl.cans===undefined)cl.cans=48;if(cl.note===undefined)cl.note='';if(cl.date===undefined)cl.date='';});
   t.realized=t.realized||[];t.realized.forEach(cl=>{if(cl.note===undefined)cl.note='';if(cl.date===undefined)cl.date='';});
   t.upsell=t.upsell||[];t.upsell.forEach(u=>{if(u.note===undefined)u.note='';if(u.date===undefined)u.date='';});
+  t.promos=t.promos||[];t.promos.forEach(p=>{if(p.note===undefined)p.note='';if(p.date===undefined)p.date='';if(p.status===undefined)p.status='Planned';});
   t.actual=Object.assign({meetings:''},t.actual);
   if(typeof t.contingency!=='number')t.contingency=10;
-  budget=t.budget;contingency=t.contingency;A=t.A;clients=t.clients;realized=t.realized;upsell=t.upsell;actual=t.actual;
+  budget=t.budget;contingency=t.contingency;A=t.A;clients=t.clients;realized=t.realized;upsell=t.upsell;promos=t.promos;actual=t.actual;
 }
 bindTrip();
 function saveStore(){
@@ -325,7 +353,7 @@ function dupTrip(){
   delete t.sbId;
   t.budget.forEach(b=>{b.act='';b.actDate='';delete b.sbId;});
   (t.upsell||[]).forEach(u=>{delete u.sbId;});
-  t.realized=[];t.actual={meetings:''};t.clients=[];
+  t.realized=[];t.actual={meetings:''};t.clients=[];t.promos=[];
   store.trips.push(t);store.cur=store.trips.length-1;bindTrip();markTripAll(t);render();
 }
 function delTrip(){
@@ -520,6 +548,88 @@ function setRealName(i,v){if(v&&v.trim()){realized[i].name=v.trim();realized[i].
 function setUpsName(i,v){if(v&&v.trim()){upsell[i].name=v.trim();upsell[i]._custom=1;markRow(upsell[i]);render();}}
 function backReal(i){const n=clients[0];realized[i]._custom=0;if(n){realized[i].name=n.name;realized[i].seg=n.seg;realized[i].can=n.can;realized[i].cans=n.cans;}markRow(realized[i]);render();}
 function backUps(i){realized;upsell[i]._custom=0;if(clients[0])upsell[i].name=clients[0].name;markRow(upsell[i]);render();}
+function addPromo(){
+  const src=clients[0];
+  promos.push({name:src?src.name:'Client',seg:src?src.seg:SEGS[0],ptype:PTYPES[0],status:'Planned',
+    date:todayStr(),cost:0,can:src?src.can:13500,base:0,cur:0,note:''});
+  markRow(promos[promos.length-1]);render();
+}
+function delPromo(i){delMark(promos[i]);promos.splice(i,1);render();}
+// Itemized cost: a promo's effective cost is the sum of its line items when it
+// has any, otherwise the single `cost` figure. Line items live in p.items and
+// persist automatically (whole row is stored as JSON).
+function promoCost(p){return (p.items&&p.items.length)?p.items.reduce((s,it)=>s+(Number(it.amt)||0),0):(Number(p.cost)||0);}
+function itemizePromo(i){const p=promos[i];p.items=(Number(p.cost)>0)?[{label:'',amt:p.cost}]:[{label:'',amt:0}];markRow(p);render();}
+function unitemizePromo(i){const p=promos[i];p.cost=promoCost(p);p.items=[];markRow(p);render();}
+function addCostItem(i){promos[i].items=promos[i].items||[];promos[i].items.push({label:'',amt:0});markRow(promos[i]);render();}
+function delCostItem(i,j){const p=promos[i];if(!p.items)return;p.items.splice(j,1);if(!p.items.length)p.items.push({label:'',amt:0});markRow(p);render();}
+function updCostItem(i,j,f,v){const p=promos[i];if(!p.items||!p.items[j])return;if(f==='amt'){const x=moneyOf(v);if(x===null||x<0)return;p.items[j].amt=x;}else p.items[j].label=v;markRow(p);render();}
+function costCell(p,i){
+  if(p.items&&p.items.length){
+    const rows=p.items.map((it,j)=>`<div style="display:flex;gap:3px;margin-bottom:3px;align-items:center;justify-content:flex-end">
+      <input value="${String(it.label||'').replace(/"/g,'&quot;')}" placeholder="item" style="width:80px;font-size:.66rem;text-align:left" onchange="updCostItem(${i},${j},'label',this.value)">
+      <input value="${fmtIn(it.amt||0)}" style="width:84px;font-size:.66rem" onchange="updCostItem(${i},${j},'amt',this.value)">
+      <button class="del" style="padding:0 4px" onclick="delCostItem(${i},${j})">✕</button></div>`).join('');
+    return `<td class="num"><div style="min-width:190px">${rows}
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:2px">
+        <a onclick="addCostItem(${i})" style="cursor:pointer;color:var(--orange);font-size:.66rem">+ line</a>
+        <a onclick="unitemizePromo(${i})" style="cursor:pointer;color:var(--muted);font-size:.66rem">single</a>
+        <b style="font-size:.74rem">Σ ${fmtS(promoCost(p))}</b>
+      </div></div></td>`;
+  }
+  return `<td class="num"><input style="width:110px" value="${fmtIn(p.cost||0)}" onchange="updPromo(${i},'cost',this.value)">
+    <div style="margin-top:2px;text-align:right"><a onclick="itemizePromo(${i})" style="cursor:pointer;color:var(--orange);font-size:.66rem">itemize ▾</a></div></td>`;
+}
+function updPromo(i,f,v){
+  if(f==='cost'||f==='can'){const x=moneyOf(v);if(x===null||x<0)return;promos[i][f]=x;}
+  else if(f==='base'||f==='cur'){const x=numOf(v);if(x===null||x<0)return;promos[i][f]=x;}
+  else promos[i][f]=v;
+  markRow(promos[i]);render();
+}
+function pickPromo(i,val){
+  if(val==='__custom'){promos[i]._custom=1;promos[i].name='';}
+  else{
+    promos[i]._custom=0;promos[i].name=val;
+    const src=clients.find(c=>c.name===val);
+    if(src){promos[i].seg=src.seg;promos[i].can=src.can;}
+  }
+  markRow(promos[i]);render();
+}
+function setPromoName(i,v){if(v&&v.trim()){promos[i].name=v.trim();promos[i]._custom=1;markRow(promos[i]);render();}}
+function backPromo(i){promos[i]._custom=0;if(clients[0]){promos[i].name=clients[0].name;promos[i].seg=clients[0].seg;promos[i].can=clients[0].can;}markRow(promos[i]);render();}
+function promoCalc(c){
+  const cogs=c.cogs;
+  const rows=promos.map(p=>{
+    const cost=promoCost(p);
+    const upBox=(p.cur||0)-(p.base||0);
+    const growth=(p.base>0)?upBox/p.base:null;
+    const upRev=upBox*CANS_PER_BOX*(p.can||0);
+    const upGP=upBox*CANS_PER_BOX*((p.can||0)-cogs);
+    const payback=(cost>0&&upGP>0)?cost/upGP:null;
+    return {p,cost,upBox,growth,upRev,upGP,payback};
+  });
+  const agg=key=>{
+    const m={};
+    rows.forEach(r=>{
+      const k=r.p[key]||'—';
+      m[k]=m[k]||{n:0,cost:0,upRev:0,upGP:0,gs:[]};
+      m[k].n++;m[k].cost+=r.cost;m[k].upRev+=r.upRev;m[k].upGP+=r.upGP;
+      if(r.growth!==null)m[k].gs.push(r.growth);
+    });
+    Object.values(m).forEach(v=>v.avgG=v.gs.length?v.gs.reduce((a,b)=>a+b,0)/v.gs.length:null);
+    return m;
+  };
+  const bySeg=agg('seg'),byType=agg('ptype');
+  const totalCost=rows.reduce((s,r)=>s+r.cost,0);
+  const upRevT=rows.reduce((s,r)=>s+r.upRev,0);
+  const upGPT=rows.reduce((s,r)=>s+r.upGP,0);
+  const gs=rows.filter(r=>r.growth!==null).map(r=>r.growth);
+  return {rows,bySeg,byType,totalCost,upRevT,upGPT,
+    avgG:gs.length?gs.reduce((a,b)=>a+b,0)/gs.length:null,
+    running:promos.filter(p=>p.status==='Running').length,
+    payback:(totalCost>0&&upGPT>0)?totalCost/upGPT:null,
+    best:Object.entries(byType).reduce((b,[k,v])=>(v.avgG!==null&&(b===null||v.avgG>byType[b].avgG))?k:b,null)};
+}
 function delReal(i){delMark(realized[i]);realized.splice(i,1);render();}
 function updUps(i,f,v){
   if(f==='name'||f==='status'||f==='note'||f==='date'){upsell[i][f]=v;}
@@ -747,7 +857,7 @@ function markRow(row){if(!sbCfg()||!row)return;row.sbId=row.sbId||uuid();dirtyRo
 function delMark(row){if(!sbCfg()||!row||!row.sbId)return;dirtyRows.delete(row.sbId);pendingDeletes.records.add(row.sbId);markFlush();}
 function markTrip(){if(!sbCfg())return;const t=store.trips[store.cur];t.sbId=t.sbId||uuid();dirtyTrips.add(t.sbId);markFlush();}
 function markTripAll(t){if(!sbCfg()||!t)return;t.sbId=t.sbId||uuid();dirtyTrips.add(t.sbId);
-  ['budget','clients','realized','upsell'].forEach(k=>(t[k]||[]).forEach(r=>{r.sbId=r.sbId||uuid();dirtyRows.add(r.sbId);}));markFlush();}
+  ['budget','clients','realized','upsell','promos'].forEach(k=>(t[k]||[]).forEach(r=>{r.sbId=r.sbId||uuid();dirtyRows.add(r.sbId);}));markFlush();}
 function markFlush(){if(!sbActive())return;clearTimeout(flushTimer);setSb('Saving to team…');flushTimer=setTimeout(flushCloud,1200);}
 function hasPending(){return dirtyRows.size||dirtyTrips.size||pendingDeletes.records.size||pendingDeletes.trips.size;}
 async function flushCloud(){
@@ -762,7 +872,7 @@ async function flushCloud(){
     const rUps=[];
     store.trips.forEach(t=>{
       if(!t.sbId)return;
-      [['budget','budget'],['clients','lead'],['realized','realized'],['upsell','upsell']].forEach(([k,kind])=>{
+      [['budget','budget'],['clients','lead'],['realized','realized'],['upsell','upsell'],['promos','promo']].forEach(([k,kind])=>{
         (t[k]||[]).forEach((row,i)=>{
           if(row.sbId&&dirtyRows.has(row.sbId)){
             const data=Object.assign({},row);delete data.sbId;data.ord=i;
@@ -800,7 +910,7 @@ async function cloudLoad(initial){
       const rows=byTrip[tp.id]||[];
       const pick=kind=>rows.filter(r=>r.kind===kind).map(r=>Object.assign({},r.data,{sbId:r.id})).sort((a,b)=>((a.ord??0)-(b.ord??0)));
       return {sbId:tp.id,name:tp.name||'Trip',contingency:Number(tp.contingency)||10,A:tp.a||{},actual:tp.actual||{},
-        budget:pick('budget'),clients:pick('lead'),realized:pick('realized'),upsell:pick('upsell')};
+        budget:pick('budget'),clients:pick('lead'),realized:pick('realized'),upsell:pick('upsell'),promos:pick('promo')};
     });
     const idx=store.trips.findIndex(t=>t.sbId===curId);
     store.cur=idx>=0?idx:0;
@@ -956,7 +1066,113 @@ function downloadReport(){
   ${ups.map(u=>`<tr><td>${u.date||'—'}</td><td>${esc(u.name)}</td><td class=n>${fmt(upsEx(u))}</td><td class=n>${fmt(upsNw(u))}</td><td class=n>+${fmt(upsNw(u)-upsEx(u))}</td><td>${esc(u.note)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">None in this period</td></tr>'}
   </table>
 
+  <h2>Trade promotions${period==='all'?'':' — '+esc(periodLabel())}</h2>
+  ${(()=>{
+    const pr=promos.filter(p=>period==='all'?true:inP(p.date));
+    if(!pr.length)return '<p class="muted">No promos logged'+(period==='all'?'':' in this period')+'.</p>';
+    const m={};
+    pr.forEach(p=>{
+      const upGP=((p.cur||0)-(p.base||0))*CANS_PER_BOX*((p.can||0)-c.cogs);
+      const g=(p.base>0)?((p.cur||0)-(p.base||0))/p.base:null;
+      const k=p.ptype;m[k]=m[k]||{n:0,cost:0,upGP:0,gs:[]};
+      m[k].n++;m[k].cost+=promoCost(p);m[k].upGP+=upGP;if(g!==null)m[k].gs.push(g);
+    });
+    return '<table><tr><th>Promo type</th><th class=n>#</th><th class=n>Cost</th><th class=n>Avg growth</th><th class=n>Uplift GP/mo</th><th>Verdict</th></tr>'+
+      Object.entries(m).map(([k,v])=>{
+        const ag=v.gs.length?v.gs.reduce((a,b)=>a+b,0)/v.gs.length:null;
+        const pb=(v.cost>0&&v.upGP>0)?(v.cost/v.upGP).toFixed(1)+' mo payback':null;
+        return `<tr><td>${esc(k)}</td><td class=n>${v.n}</td><td class=n>${fmtS(v.cost)}</td>
+        <td class=n>${ag!==null?pctf(ag):'—'}</td><td class=n>${fmtS(v.upGP)}</td>
+        <td>${ag===null?'<span class="muted">not measured yet</span>':ag>=0?'<span style="color:#1F9D55;font-weight:bold">Growing ✓'+(pb?' · '+pb:'')+'</span>':'<span style="color:#E0442E;font-weight:bold">No growth — review</span>'}</td></tr>`;
+      }).join('')+'</table>';
+  })()}
+
   <p class="muted">Cost per lead = spend ÷ leads approached · Success ratio = acquired ÷ approached · ROI = (gross profit @ ${Math.round(c.marginPct*100)}% margin, incl. ${A.boxes} repeat boxes/client over ${c.H} months − spend) ÷ spend · Generated from BORA Sales Dashboard</p>
+  <scr`+`ipt>window.onload=function(){setTimeout(function(){window.print();},400);};</scr`+`ipt>
+  </body></html>`;
+  const w=window.open('','_blank');
+  if(!w){alert('Please allow pop-ups to download the report.');return;}
+  w.document.write(html);w.document.close();
+}
+
+/* ---------- downloadable TRADE PROMO report (print → PDF) ---------- */
+function downloadPromoReport(){
+  const c=calc();
+  const inP=d=>inPeriod(d,period);
+  const pr=promos.filter(p=>period==='all'?true:inP(p.date));
+  const cogs=c.cogs;
+  const rows=pr.map(p=>{
+    const cost=promoCost(p);
+    const upBox=(p.cur||0)-(p.base||0);
+    const growth=(p.base>0)?upBox/p.base:null;
+    const upGP=upBox*CANS_PER_BOX*((p.can||0)-cogs);
+    const payback=(cost>0&&upGP>0)?cost/upGP:null;
+    return {p,cost,upBox,growth,upGP,payback};
+  });
+  const totCost=rows.reduce((s,x)=>s+x.cost,0);
+  const totUpGP=rows.reduce((s,x)=>s+x.upGP,0);
+  const gs=rows.filter(x=>x.growth!==null).map(x=>x.growth);
+  const avgG=gs.length?gs.reduce((a,b)=>a+b,0)/gs.length:null;
+  const blendPay=(totCost>0&&totUpGP>0)?totCost/totUpGP:null;
+  const running=pr.filter(p=>p.status==='Running').length;
+  const byType={};
+  rows.forEach(x=>{const k=x.p.ptype;byType[k]=byType[k]||{n:0,cost:0,upGP:0,gs:[]};byType[k].n++;byType[k].cost+=x.cost;byType[k].upGP+=x.upGP;if(x.growth!==null)byType[k].gs.push(x.growth);});
+  let best=null;Object.entries(byType).forEach(([k,v])=>{v.avgG=v.gs.length?v.gs.reduce((a,b)=>a+b,0)/v.gs.length:null;if(v.avgG!==null&&(best===null||v.avgG>byType[best].avgG))best=k;});
+  const kpi=(l,v)=>`<span class="kpi">${l}<b>${v}</b></span>`;
+  const vd=(ok,good,bad)=>ok?`<span style="color:#1F9D55;font-weight:bold">${good}</span>`:`<span style="color:#E0442E;font-weight:bold">${bad}</span>`;
+  const typeTable=rows.length?('<table><tr><th>Promo type</th><th class=n>#</th><th class=n>Cost</th><th class=n>Avg growth</th><th class=n>Uplift GP/mo</th><th>Verdict</th></tr>'+
+    Object.entries(byType).map(([k,v])=>{
+      const pb=(v.cost>0&&v.upGP>0)?(v.cost/v.upGP).toFixed(1)+' mo payback':null;
+      return `<tr><td>${esc(PSHORT[k]||k)}</td><td class=n>${v.n}</td><td class=n>${fmtS(v.cost)}</td>
+        <td class=n>${v.avgG!==null?pctf(v.avgG):'—'}</td><td class=n>${fmtS(v.upGP)}</td>
+        <td>${v.avgG===null?'<span class="muted">not measured yet</span>':v.avgG>=0?'<span style="color:#1F9D55;font-weight:bold">Growing ✓'+(pb?' · '+pb:'')+'</span>':'<span style="color:#E0442E;font-weight:bold">No growth — review</span>'}</td></tr>`;
+    }).join('')+'</table>'):'<p class="muted">No promos logged'+(period==='all'?'':' in this period')+'.</p>';
+  const detail=rows.length?('<table><tr><th>Client</th><th>Type</th><th>Status</th><th>Start</th><th class=n>Cost</th><th class=n>Base bx/mo</th><th class=n>Now bx/mo</th><th class=n>Growth</th><th class=n>Uplift GP/mo</th><th class=n>Payback</th></tr>'+
+    rows.map(x=>{const p=x.p;
+      const items=(p.items&&p.items.length)?'<br><span class="muted">'+p.items.map(it=>esc(it.label||'item')+' '+fmtS(it.amt||0)).join(' · ')+'</span>':'';
+      return `<tr><td>${esc(p.name||'Client')}<br><span class="muted">${esc(p.seg||'')}</span></td>
+        <td>${esc(PSHORT[p.ptype]||p.ptype||'')}</td><td>${esc(p.status||'')}</td><td>${esc(p.date||'—')}</td>
+        <td class=n>${fmtS(x.cost)}${items}</td>
+        <td class=n>${p.base||0}</td><td class=n>${p.cur||0}</td>
+        <td class=n>${x.growth!==null?pctf(x.growth):'—'}</td>
+        <td class=n>${fmtS(x.upGP)}</td>
+        <td class=n>${x.payback!==null?x.payback.toFixed(1)+' mo':'—'}</td></tr>`;
+    }).join('')+'</table>'):'';
+  const html=`<!DOCTYPE html><html><head><title>BORA Trade Promo Report — ${esc(periodLabel())}</title><style>
+    body{font-family:Arial,Helvetica,sans-serif;color:#141414;margin:34px}
+    .hd{background:#141414;color:#fff;padding:18px 22px;border-radius:14px;display:flex;justify-content:space-between;align-items:center}
+    .hd b{font-size:1.6rem;letter-spacing:-.5px;font-family:'Arial Narrow',Arial,sans-serif}
+    h2{font-size:1rem;margin:24px 0 8px;border-bottom:2px solid #141414;padding-bottom:4px}
+    table{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:6px}
+    th,td{border:1px solid #ddd;padding:5px 8px;text-align:left;vertical-align:top}
+    th{background:#F1EFE9;text-transform:uppercase;font-size:9.5px}
+    td.n,th.n{text-align:right;white-space:nowrap}
+    .kpi{display:inline-block;border:1.5px solid #141414;border-radius:12px;padding:9px 14px;margin:4px 6px 4px 0;font-size:11px}
+    .kpi b{display:block;font-size:1.15rem;margin-top:2px}
+    .muted{color:#777;font-size:10.5px}
+    @media print{body{margin:12mm}}
+  </style></head><body>
+  <div class="hd"><span><b>BORA</b><br>Trade Promotion Report — Retention &amp; Volume Growth</span>
+    <span style="text-align:right;font-size:12px">${esc(store.trips[store.cur].name)}<br><b style="font-size:1rem">${esc(periodLabel())}</b><br>generated ${new Date().toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'})}</span></div>
+
+  <p class="muted" style="margin:12px 0 0">Trade promotions are spend aimed at <b>keeping existing clients and growing their volume</b> — distinct from client-acquisition spend. A promo earns its keep when the extra monthly gross profit repays its cost within a few months.</p>
+
+  <h2>Key metrics — ${esc(periodLabel())}</h2>
+  ${kpi('Promos logged',pr.length)}
+  ${kpi('Active now',running)}
+  ${kpi('Total promo spend',fmtS(totCost))}
+  ${kpi('Avg growth',avgG!==null?pctf(avgG):'—')}
+  ${kpi('Uplift GP / month',fmtS(totUpGP))}
+  ${kpi('Blended payback',blendPay!==null?blendPay.toFixed(1)+' mo':'—')}
+  ${kpi('Best promo type',best?esc(PSHORT[best]||best):'—')}
+
+  <h2>Effectiveness by promo type — ${esc(periodLabel())}</h2>
+  <p class="muted" style="margin:0 0 6px">Overall verdict: ${rows.length?vd((avgG||0)>=0&&(blendPay===null||blendPay<=6),'Trade spend is growing volume'+(blendPay!==null?' · '+blendPay.toFixed(1)+' mo blended payback':''),'Trade spend not yet paying back — review'):'<span class="muted">no data</span>'}</p>
+  ${typeTable}
+
+  ${rows.length?'<h2>Promo detail — one row per placement'+(period==='all'?'':' — '+esc(periodLabel()))+'</h2>'+detail:''}
+
+  <p class="muted">Growth = boxes/month during promo vs baseline · Uplift GP/mo = extra boxes × cans/box × (price − COGS) · Payback = promo cost ÷ monthly uplift GP · Generated from BORA Sales Dashboard</p>
   <scr`+`ipt>window.onload=function(){setTimeout(function(){window.print();},400);};</scr`+`ipt>
   </body></html>`;
   const w=window.open('','_blank');
@@ -1004,6 +1220,19 @@ function render(){
   document.getElementById('liveTrack').innerHTML=view==='plan'?PLAN_HINT:
     view==='compare'?pairBars(liveRows):
     liveRows.map(a=>trackBar(...a)).join('');
+  // Acquire vs grow split
+  (function(){
+    const acq=r.hasSpend?r.spend:c.total;
+    const promoTot=promoCalc(c).totalCost;
+    const tot=(acq+promoTot)||1;
+    const sBar=(lbl,val,col,sub)=>`<div class="fun-row"><div class="fun-top"><span>${lbl}</span><b>${fmtS(val)} · ${Math.round(val/tot*100)}%</b></div>
+      <div class="fun-bar"><i style="width:${Math.min(100,val/tot*100)}%;background:${col}"></i></div>
+      <div class="muted" style="font-size:.66rem;margin-top:2px">${sub}</div></div>`;
+    const el=document.getElementById('splitCard'); if(el) el.innerHTML=
+      sBar('Acquisition — win new clients', acq, '#E4551D', (r.hasSpend?'actual spend':'planned budget')+' · Budgeting &amp; Realization + Deal pages')+
+      sBar('Trade promo — grow existing clients', promoTot, '#141414', 'maintain accounts &amp; lift their volume · Trade Promo page')+
+      `<p class="note" style="margin:8px 0 0">Two different jobs: acquisition buys new clients; trade promo buys more volume from the ones you already have.</p>`;
+  })();
 
   const dn=donutHTML(c,r);
   const d=document.getElementById('donut-live');
@@ -1125,9 +1354,9 @@ function render(){
   const nameCell=(obj,i,list)=>{
     if(list==='p')return `<td><input class="txt" value="${String(obj.name).replace(/"/g,'&quot;')}" onchange="updCl('p',${i},'name',this.value)"></td>`;
     const names=leadNames();
-    const fn=list==='r'?'pickReal':'pickUps';
-    const setFn=list==='r'?'setRealName':'setUpsName';
-    const backFn=list==='r'?'backReal':'backUps';
+    const fn=list==='r'?'pickReal':list==='m'?'pickPromo':'pickUps';
+    const setFn=list==='r'?'setRealName':list==='m'?'setPromoName':'setUpsName';
+    const backFn=list==='r'?'backReal':list==='m'?'backPromo':'backUps';
     const custom=obj._custom||!obj.name||!names.includes(obj.name);
     if(custom){
       return `<td><div style="display:flex;gap:4px;align-items:center;min-width:150px">
@@ -1197,6 +1426,70 @@ function render(){
       <td class="num" colspan="2">proposed+closed: ${fmtS(c.upsIncRev)}</td>
       <td class="num" colspan="2">closed only: <b class="green">${fmtS(r.uIncRev)}</b></td><td colspan="2"></td></tr></table>`:
     '<div class="note" style="margin:0">Add existing clients you\'ll reapproach. Propose a bigger order (more cans or better price) — the table shows increase %, cans %, price change, and margin shift. Mark Closed when they agree.</div>';
+
+  // TRADE PROMO PAGE
+  const pc=promoCalc(c);
+  const PSHORT={'Flyer Placement (POSM)':'POSM','Bundling Subsidy':'Bundling','Quantity Discount':'Qty Disc','Content Production':'Content','Event Activation':'Event'};
+  document.getElementById('promoKpi').innerHTML=`
+    <div class="card orange"><div class="lbl">Active promos</div><div class="val">${pc.running}</div><div class="cmp">${promos.length} logged total</div></div>
+    <div class="card yellow"><div class="lbl">Promo cost</div><div class="val">${fmtS(pc.totalCost)}</div></div>
+    <div class="card"><div class="lbl">Avg sales growth</div><div class="val ${pc.avgG!==null?(pc.avgG>=0?'green':'red'):''}">${pc.avgG!==null?pctf(pc.avgG):'—'}</div><div class="cmp">boxes/mo vs baseline</div></div>
+    <div class="card"><div class="lbl">Monthly uplift</div><div class="val ${pc.upRevT>=0?'':'red'}">${fmtS(pc.upRevT)}</div><div class="cmp">GP ${fmtS(pc.upGPT)}/mo</div></div>
+    <div class="card dark"><div class="lbl">Payback</div><div class="val">${pc.payback!==null?pc.payback.toFixed(1)+' mo':'—'}</div><div class="cmp">total cost ÷ uplift GP/mo</div></div>
+    <div class="card dark"><div class="lbl">Best promo type</div><div class="val" style="font-size:.82rem">${pc.best?PSHORT[pc.best]||pc.best:'—'}</div><div class="cmp">${(pc.best&&pc.byType[pc.best].avgG!==null)?pctf(pc.byType[pc.best].avgG)+' avg growth':''}</div></div>`;
+
+  const segsWith=SEGS.filter(sg=>promos.some(p=>p.seg===sg));
+  document.getElementById('promoMatrix').innerHTML=promos.length?
+    '<table><tr><th>Client type</th>'+PTYPES.map(t=>`<th class="num">${PSHORT[t]}</th>`).join('')+'<th class="num">Total</th><th class="num">Cost</th></tr>'+
+    segsWith.map(sg=>{
+      const cnt=t=>promos.filter(p=>p.seg===sg&&p.ptype===t).length;
+      const tot=promos.filter(p=>p.seg===sg).length;
+      return `<tr><td><b>${sg}</b></td>`+PTYPES.map(t=>`<td class="num">${cnt(t)||'·'}</td>`).join('')+
+        `<td class="num" style="font-weight:700">${tot}</td><td class="num">${fmtS((pc.bySeg[sg]||{cost:0}).cost)}</td></tr>`;
+    }).join('')+'</table>':
+    '<p class="note" style="margin:0">No promos logged yet — add them in the Promo log below (✅ Realization or 📐 Plan view).</p>';
+
+  const hBar=(label,val,max,col,txt)=>`<div class="fun-row"><div class="fun-top"><span>${label}</span><b>${txt}</b></div>
+    <div class="fun-bar"><i style="width:${max>0?Math.min(100,Math.abs(val)/max*100):0}%;background:${col}"></i></div></div>`;
+  const segEntries=Object.entries(pc.bySeg),typeEntries=Object.entries(pc.byType);
+  const maxSegCost=Math.max(...segEntries.map(([k,v])=>v.cost),1);
+  const maxTypeCost=Math.max(...typeEntries.map(([k,v])=>v.cost),1);
+  document.getElementById('promoCost').innerHTML=promos.length?
+    '<p class="muted" style="margin-bottom:8px"><b style="color:var(--text)">By client type</b></p>'+
+    segEntries.map(([k,v])=>hBar(k,v.cost,maxSegCost,'#E4551D',fmtS(v.cost)+' · '+v.n+' promo'+(v.n>1?'s':''))).join('')+
+    '<p class="muted" style="margin:12px 0 8px"><b style="color:var(--text)">By promo type</b></p>'+
+    typeEntries.map(([k,v])=>hBar(PSHORT[k]||k,v.cost,maxTypeCost,'#141414',fmtS(v.cost))).join(''):
+    '<p class="note" style="margin:0">Charts appear once promos are logged.</p>';
+
+  const maxG=Math.max(...typeEntries.map(([k,v])=>Math.abs(v.avgG||0)),0.1);
+  document.getElementById('promoGrowth').innerHTML=promos.length?
+    typeEntries.map(([k,v])=>hBar(PSHORT[k]||k,v.avgG||0,maxG,(v.avgG||0)>=0?'var(--green)':'var(--red)',
+      (v.avgG!==null?pctf(v.avgG):'—')+' · GP '+fmtS(v.upGP)+'/mo vs cost '+fmtS(v.cost))).join('')+
+    `<p class="note">Growth = boxes/month during promo vs baseline, averaged per promo type. A promo earns its keep when monthly uplift GP repays its cost within a few months.</p>`:
+    '<p class="note" style="margin:0">Log baseline and during boxes/month to measure the sales effect.</p>';
+
+  document.getElementById('promoTable').innerHTML=promos.length?
+    '<table><tr><th>Client</th><th style="width:150px">Type</th><th>Promo</th><th>Status</th><th>Start</th><th class="num">Cost</th><th class="num">Price/can</th><th class="num">Base bx/mo</th><th class="num">Now bx/mo</th><th class="num">Growth</th><th class="num">Uplift/mo</th><th class="num">Payback</th><th>Comment</th><th></th></tr>'+
+    pc.rows.map((r,i)=>{
+      const p=r.p;
+      const stCol=p.status==='Running'?'var(--green)':p.status==='Ended'?'var(--muted)':'var(--orange)';
+      return `<tr style="${p.status==='Ended'?'opacity:.55':''}">
+      ${nameCell(p,i,'m')}
+      <td><select onchange="updPromo(${i},'seg',this.value)">${SEGS.map(sg=>`<option ${sg===p.seg?'selected':''}>${sg}</option>`).join('')}</select></td>
+      <td><select style="max-width:150px" onchange="updPromo(${i},'ptype',this.value)">${PTYPES.map(t=>`<option ${t===p.ptype?'selected':''}>${t}</option>`).join('')}</select></td>
+      <td><select style="color:${stCol};max-width:100px" onchange="updPromo(${i},'status',this.value)">${PSTATUS.map(t=>`<option ${t===p.status?'selected':''}>${t}</option>`).join('')}</select></td>
+      <td><input type="date" value="${p.date||''}" style="width:135px;text-align:left" onchange="updPromo(${i},'date',this.value)"></td>
+      ${costCell(p,i)}
+      <td class="num"><input style="width:105px" value="${fmtIn(p.can||0)}" onchange="updPromo(${i},'can',this.value)"></td>
+      <td class="num"><input class="qty" value="${p.base||0}" onchange="updPromo(${i},'base',this.value)"></td>
+      <td class="num"><input class="qty" value="${p.cur||0}" onchange="updPromo(${i},'cur',this.value)"></td>
+      <td class="num ${r.growth!==null?(r.growth>=0?'green':'red'):''}" style="font-weight:700">${r.growth!==null?pctf(r.growth):'—'}</td>
+      <td class="num">${fmtS(r.upRev)}<div class="muted" style="font-size:.62rem">GP ${fmtS(r.upGP)}</div></td>
+      <td class="num">${r.payback!==null?r.payback.toFixed(1)+' mo':'—'}</td>
+      <td style="min-width:140px"><input class="txt" value="${String(p.note||'').replace(/"/g,'&quot;')}" placeholder="Comment…" onchange="updPromo(${i},'note',this.value)"></td>
+      <td><button class="del" onclick="delPromo(${i})">✕</button></td></tr>`;
+    }).join('')+'</table>':
+    '<p class="note" style="margin:0">No promos yet. "+ Log promo" adds one — pick the client, promo type, cost, and the boxes/month before the promo started.</p>';
 
   renderSb();
   renderTrips();
