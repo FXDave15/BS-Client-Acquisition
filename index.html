@@ -555,8 +555,6 @@ function addPromo(){
   markRow(promos[promos.length-1]);render();
 }
 function delPromo(i){delMark(promos[i]);promos.splice(i,1);render();}
-// A promo's cost can be a single figure OR itemized line items {label, qty, cost}
-// whose total is qty × cost. Items persist inside the record JSON (no schema change).
 function itemQty(it){return it.qty!==undefined?(Number(it.qty)||0):1;}
 function itemUnit(it){return it.cost!==undefined?(Number(it.cost)||0):(Number(it.amt)||0);}
 function itemAmt(it){return itemQty(it)*itemUnit(it);}
@@ -576,9 +574,9 @@ function costCell(p,i){
     const rows=p.items.map((it,j)=>`<div style="display:flex;gap:3px;margin-bottom:3px;align-items:center;justify-content:flex-end">
       <input value="${String(it.label||'').replace(/"/g,'&quot;')}" placeholder="item" style="width:72px;font-size:.66rem;text-align:left" onchange="updCostItem(${i},${j},'label',this.value)">
       <input value="${itemQty(it)}" title="qty" style="width:34px;font-size:.66rem" onchange="updCostItem(${i},${j},'qty',this.value)">
-      <span style="font-size:.6rem;color:#999">×</span>
+      <span style="font-size:.6rem;color:#999">&times;</span>
       <input value="${fmtIn(itemUnit(it))}" title="unit cost" style="width:74px;font-size:.66rem" onchange="updCostItem(${i},${j},'cost',this.value)">
-      <button class="del" style="padding:0 4px" onclick="delCostItem(${i},${j})">✕</button></div>`).join('');
+      <button class="del" style="padding:0 4px" onclick="delCostItem(${i},${j})">&#10005;</button></div>`).join('');
     return `<td class="num"><div style="min-width:210px">
       <div style="display:flex;gap:3px;justify-content:flex-end;font-size:.56rem;color:#999;margin-bottom:2px">
         <span style="width:72px;text-align:left">item</span><span style="width:34px;text-align:center">qty</span><span style="width:10px"></span><span style="width:74px;text-align:center">unit cost</span><span style="width:16px"></span></div>
@@ -586,11 +584,11 @@ function costCell(p,i){
       <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:2px">
         <a onclick="addCostItem(${i})" style="cursor:pointer;color:var(--orange);font-size:.66rem">+ line</a>
         <a onclick="unitemizePromo(${i})" style="cursor:pointer;color:var(--muted);font-size:.66rem">single</a>
-        <b style="font-size:.74rem">Σ ${fmtS(promoCost(p))}</b>
+        <b style="font-size:.74rem">&Sigma; ${fmtS(promoCost(p))}</b>
       </div></div></td>`;
   }
   return `<td class="num"><input style="width:110px" value="${fmtIn(p.cost||0)}" onchange="updPromo(${i},'cost',this.value)">
-    <div style="margin-top:2px;text-align:right"><a onclick="itemizePromo(${i})" style="cursor:pointer;color:var(--orange);font-size:.66rem">itemize ▾</a></div></td>`;
+    <div style="margin-top:2px;text-align:right"><a onclick="itemizePromo(${i})" style="cursor:pointer;color:var(--orange);font-size:.66rem">itemize &#9662;</a></div></td>`;
 }
 function updPromo(i,f,v){
   if(f==='cost'||f==='can'){const x=moneyOf(v);if(x===null||x<0)return;promos[i][f]=x;}
@@ -1107,7 +1105,7 @@ function downloadReport(){
   w.document.write(html);w.document.close();
 }
 
-/* ---------- downloadable TRADE PROMO report (print → PDF) ---------- */
+/* ---------- downloadable TRADE PROMO report ---------- */
 function downloadPromoReport(){
   const c=calc();
   const inP=d=>inPeriod(d,period);
@@ -1187,9 +1185,19 @@ function downloadPromoReport(){
   <p class="muted">Growth = boxes/month during promo vs baseline · Uplift GP/mo = extra boxes × cans/box × (price − COGS) · Payback = promo cost ÷ monthly uplift GP · Generated from BORA Sales Dashboard</p>
   <scr`+`ipt>window.onload=function(){setTimeout(function(){window.print();},400);};</scr`+`ipt>
   </body></html>`;
-  const w=window.open('','_blank');
-  if(!w){alert('Please allow pop-ups to download the report.');return;}
-  w.document.write(html);w.document.close();
+  try{
+    const blob=new Blob([html],{type:'text/html'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='BORA-Trade-Promo-Report-'+String(periodLabel()||'all').replace(/[^\w\-]+/g,'-')+'.html';
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},1500);
+  }catch(e){
+    const w=window.open('','_blank');
+    if(!w){alert('Could not download — please allow pop-ups and try again.');return;}
+    w.document.write(html);w.document.close();
+  }
 }
 
 /* ---------- render ---------- */
