@@ -552,7 +552,7 @@ function backUps(i){realized;upsell[i]._custom=0;if(clients[0])upsell[i].name=cl
 function addPromo(){
   const src=clients[0];
   promos.push({name:src?src.name:'Client',seg:src?src.seg:SEGS[0],ptype:PTYPES[0],status:'Planned',
-    date:todayStr(),cost:0,can:src?src.can:13500,base:0,cur:0,note:''});
+    date:todayStr(),cost:0,can:src?src.can:13500,canNew:src?src.can:13500,base:0,cur:0,note:''});
   markRow(promos[promos.length-1]);render();
 }
 function delPromo(i){delMark(promos[i]);promos.splice(i,1);render();}
@@ -592,7 +592,7 @@ function costCell(p,i){
     <div style="margin-top:2px;text-align:right"><a onclick="itemizePromo(${i})" style="cursor:pointer;color:var(--orange);font-size:.66rem">itemize &#9662;</a></div></td>`;
 }
 function updPromo(i,f,v){
-  if(f==='cost'||f==='can'){const x=moneyOf(v);if(x===null||x<0)return;promos[i][f]=x;}
+  if(f==='cost'||f==='can'||f==='canNew'){const x=moneyOf(v);if(x===null||x<0)return;promos[i][f]=x;}
   else if(f==='base'||f==='cur'){const x=numOf(v);if(x===null||x<0)return;promos[i][f]=x;}
   else promos[i][f]=v;
   markRow(promos[i]);render();
@@ -612,10 +612,12 @@ function promoCalc(c){
   const cogs=c.cogs;
   const rows=promos.map(p=>{
     const cost=promoCost(p);
-    const upBox=(p.cur||0)-(p.base||0);
-    const growth=(p.base>0)?upBox/p.base:null;
-    const upRev=upBox*CANS_PER_BOX*(p.can||0);
-    const upGP=upBox*CANS_PER_BOX*((p.can||0)-cogs);
+    const curPrice=(p.can||0), newPrice=(p.canNew!==undefined?p.canNew:p.can)||0;
+    const baseBox=(p.base||0), newBox=(p.cur||0);
+    const upBox=newBox-baseBox;
+    const growth=(baseBox>0)?upBox/baseBox:null;
+    const upRev=newBox*CANS_PER_BOX*newPrice-baseBox*CANS_PER_BOX*curPrice;
+    const upGP=newBox*CANS_PER_BOX*(newPrice-cogs)-baseBox*CANS_PER_BOX*(curPrice-cogs);
     const payback=(cost>0&&upGP>0)?cost/upGP:null;
     return {p,cost,upBox,growth,upRev,upGP,payback};
   });
@@ -1083,7 +1085,7 @@ function downloadReport(){
     if(!pr.length)return '<p class="muted">No promos logged'+(period==='all'?'':' in this period')+'.</p>';
     const m={};
     pr.forEach(p=>{
-      const upGP=((p.cur||0)-(p.base||0))*CANS_PER_BOX*((p.can||0)-c.cogs);
+      const upGP=(p.cur||0)*CANS_PER_BOX*(((p.canNew!==undefined?p.canNew:p.can)||0)-c.cogs)-(p.base||0)*CANS_PER_BOX*((p.can||0)-c.cogs);
       const g=(p.base>0)?((p.cur||0)-(p.base||0))/p.base:null;
       const k=p.ptype;m[k]=m[k]||{n:0,cost:0,upGP:0,gs:[]};
       m[k].n++;m[k].cost+=promoCost(p);m[k].upGP+=upGP;if(g!==null)m[k].gs.push(g);
@@ -1114,9 +1116,11 @@ function downloadPromoReport(){
   const cogs=c.cogs;
   const rows=pr.map(p=>{
     const cost=promoCost(p);
-    const upBox=(p.cur||0)-(p.base||0);
-    const growth=(p.base>0)?upBox/p.base:null;
-    const upGP=upBox*CANS_PER_BOX*((p.can||0)-cogs);
+    const curPrice=(p.can||0), newPrice=(p.canNew!==undefined?p.canNew:p.can)||0;
+    const baseBox=(p.base||0), newBox=(p.cur||0);
+    const upBox=newBox-baseBox;
+    const growth=(baseBox>0)?upBox/baseBox:null;
+    const upGP=newBox*CANS_PER_BOX*(newPrice-cogs)-baseBox*CANS_PER_BOX*(curPrice-cogs);
     const payback=(cost>0&&upGP>0)?cost/upGP:null;
     return {p,cost,upBox,growth,upGP,payback};
   });
@@ -1138,12 +1142,13 @@ function downloadPromoReport(){
         <td class=n>${v.avgG!==null?pctf(v.avgG):'—'}</td><td class=n>${fmtS(v.upGP)}</td>
         <td>${v.avgG===null?'<span class="muted">not measured yet</span>':v.avgG>=0?'<span style="color:#1F9D55;font-weight:bold">Growing ✓'+(pb?' · '+pb:'')+'</span>':'<span style="color:#E0442E;font-weight:bold">No growth — review</span>'}</td></tr>`;
     }).join('')+'</table>'):'<p class="muted">No promos logged'+(period==='all'?'':' in this period')+'.</p>';
-  const detail=rows.length?('<table><tr><th>Client</th><th>Type</th><th>Status</th><th>Start</th><th class=n>Cost</th><th class=n>Base bx/mo</th><th class=n>Now bx/mo</th><th class=n>Growth</th><th class=n>Uplift GP/mo</th><th class=n>Payback</th></tr>'+
+  const detail=rows.length?('<table><tr><th>Client</th><th>Type</th><th>Status</th><th>Start</th><th class=n>Cost</th><th class=n>Curr price</th><th class=n>New price</th><th class=n>Curr bx/mo</th><th class=n>New bx/mo</th><th class=n>Growth</th><th class=n>Uplift GP/mo</th><th class=n>Payback</th></tr>'+
     rows.map(x=>{const p=x.p;
       const items=(p.items&&p.items.length)?'<br><span class="muted">'+p.items.map(it=>esc(it.label||'item')+' '+itemQty(it)+'×'+fmtS(itemUnit(it))).join(' · ')+'</span>':'';
       return `<tr><td>${esc(p.name||'Client')}<br><span class="muted">${esc(p.seg||'')}</span></td>
         <td>${esc(PSHORT[p.ptype]||p.ptype||'')}</td><td>${esc(p.status||'')}</td><td>${esc(p.date||'—')}</td>
         <td class=n>${fmtS(x.cost)}${items}</td>
+        <td class=n>${fmtS(p.can||0)}</td><td class=n>${fmtS((p.canNew!==undefined?p.canNew:p.can)||0)}</td>
         <td class=n>${p.base||0}</td><td class=n>${p.cur||0}</td>
         <td class=n>${x.growth!==null?pctf(x.growth):'—'}</td>
         <td class=n>${fmtS(x.upGP)}</td>
@@ -1479,7 +1484,7 @@ function render(){
     '<p class="note" style="margin:0">Log baseline and during boxes/month to measure the sales effect.</p>';
 
   document.getElementById('promoTable').innerHTML=promos.length?
-    '<table><tr><th>Client</th><th style="width:150px">Type</th><th>Promo</th><th>Status</th><th>Start</th><th class="num">Cost</th><th class="num">Price/can</th><th class="num">Base bx/mo</th><th class="num">Now bx/mo</th><th class="num">Growth</th><th class="num">Uplift/mo</th><th class="num">Payback</th><th>Comment</th><th></th></tr>'+
+    '<table><tr><th>Client</th><th style="width:150px">Type</th><th>Promo</th><th>Status</th><th>Start</th><th class="num">Cost</th><th class="num">Curr price/can</th><th class="num">New price/can</th><th class="num">Curr bx/mo</th><th class="num">New bx/mo</th><th class="num">Growth</th><th class="num">Uplift/mo</th><th class="num">Payback</th><th>Comment</th><th></th></tr>'+
     pc.rows.map((r,i)=>{
       const p=r.p;
       const stCol=p.status==='Running'?'var(--green)':p.status==='Ended'?'var(--muted)':'var(--orange)';
@@ -1490,7 +1495,8 @@ function render(){
       <td><select style="color:${stCol};max-width:100px" onchange="updPromo(${i},'status',this.value)">${PSTATUS.map(t=>`<option ${t===p.status?'selected':''}>${t}</option>`).join('')}</select></td>
       <td><input type="date" value="${p.date||''}" style="width:135px;text-align:left" onchange="updPromo(${i},'date',this.value)"></td>
       ${costCell(p,i)}
-      <td class="num"><input style="width:105px" value="${fmtIn(p.can||0)}" onchange="updPromo(${i},'can',this.value)"></td>
+      <td class="num"><input style="width:100px" value="${fmtIn(p.can||0)}" onchange="updPromo(${i},'can',this.value)"></td>
+      <td class="num"><input style="width:100px" value="${fmtIn(p.canNew!==undefined?p.canNew:(p.can||0))}" onchange="updPromo(${i},'canNew',this.value)"></td>
       <td class="num"><input class="qty" value="${p.base||0}" onchange="updPromo(${i},'base',this.value)"></td>
       <td class="num"><input class="qty" value="${p.cur||0}" onchange="updPromo(${i},'cur',this.value)"></td>
       <td class="num ${r.growth!==null?(r.growth>=0?'green':'red'):''}" style="font-weight:700">${r.growth!==null?pctf(r.growth):'—'}</td>
